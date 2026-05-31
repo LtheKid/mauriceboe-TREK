@@ -432,4 +432,27 @@ describe('PlaceFormModal', () => {
     expect(screen.getByDisplayValue('48.8566')).toBeInTheDocument();
     expect(screen.getByDisplayValue('2.3522')).toBeInTheDocument();
   });
+
+  it('FE-PLANNER-PLACEFORM-037: Google Maps URL input extracts coordinates', async () => {
+    const user = userEvent.setup();
+    server.use(
+      http.post('/api/maps/resolve-url', () =>
+        HttpResponse.json({
+          name: 'Eiffel Tower',
+          address: 'Paris, France',
+          lat: 48.8583701,
+          lng: 2.2944813,
+        }),
+      ),
+    );
+
+    render(<PlaceFormModal {...defaultProps} />);
+    await user.type(screen.getByPlaceholderText('Paste Google Maps URL'), 'https://www.google.com/maps/place/Eiffel+Tower/@48.8589385,2.2646339,12z/data=!4m15!1m8!3m7!1s0x47e66e1f06e2b70f:0x40b82c3688c9460!2sParis,+France!3b1!8m2!3d48.8575475!4d2.3513765!16zL20vMDVxdGo!3m5!1s0x47e66e2964e34e2d:0x8ddca9ee380ef7e0!8m2!3d48.8583701!4d2.2944813!16zL20vMDJqODE');
+    await user.click(screen.getByRole('button', { name: /^Extract$/i }));
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('48.8583701')).toBeInTheDocument();
+      expect(screen.getByDisplayValue('2.2944813')).toBeInTheDocument();
+    });
+  });
 });

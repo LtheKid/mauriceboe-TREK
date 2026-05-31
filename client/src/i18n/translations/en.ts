@@ -1107,6 +1107,8 @@ const en: Record<string, string | { name: string; category: string }[]> = {
   'places.formAddressPlaceholder': 'Street, City, Country',
   'places.formLat': 'Latitude (e.g. 48.8566)',
   'places.formLng': 'Longitude (e.g. 2.3522)',
+  'places.googleMapsUrlPlaceholder': 'Paste Google Maps URL',
+  'places.extractCoords': 'Extract',
   'places.formCategory': 'Category',
   'places.noCategory': 'No Category',
   'places.categoryNamePlaceholder': 'Category name',

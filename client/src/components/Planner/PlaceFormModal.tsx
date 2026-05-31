@@ -78,6 +78,8 @@ export default function PlaceFormModal({
   const [form, setForm] = useState(DEFAULT_FORM)
   const [mapsSearch, setMapsSearch] = useState('')
   const [mapsResults, setMapsResults] = useState([])
+  const [googleMapsUrl, setGoogleMapsUrl] = useState('')
+  const [isResolvingUrl, setIsResolvingUrl] = useState(false)
   const [isSearchingMaps, setIsSearchingMaps] = useState(false)
   const [newCategoryName, setNewCategoryName] = useState('')
   const [showNewCategory, setShowNewCategory] = useState(false)
@@ -122,6 +124,7 @@ export default function PlaceFormModal({
       setForm(DEFAULT_FORM)
     }
     setPendingFiles([])
+    setGoogleMapsUrl('')
   }, [place, prefillCoords, isOpen])
 
   // Derive location bias bounding box from the trip's existing places
@@ -195,6 +198,35 @@ export default function PlaceFormModal({
     setForm(prev => ({ ...prev, [field]: value }))
   }
 
+  const applyResolvedUrl = (resolved, fillEmptyOnly = true) => {
+    if (resolved.lat == null || resolved.lng == null) return false
+    setForm(prev => ({
+      ...prev,
+      name: fillEmptyOnly ? (prev.name || resolved.name || '') : (resolved.name || prev.name),
+      address: fillEmptyOnly ? (prev.address || resolved.address || '') : (resolved.address || prev.address),
+      lat: String(resolved.lat),
+      lng: String(resolved.lng),
+    }))
+    return true
+  }
+
+  const handleResolveGoogleMapsUrl = async () => {
+    const trimmed = googleMapsUrl.trim()
+    if (!trimmed) return
+    setIsResolvingUrl(true)
+    try {
+      const resolved = await mapsApi.resolveUrl(trimmed)
+      if (applyResolvedUrl(resolved)) {
+        setGoogleMapsUrl('')
+        toast.success(t('places.urlResolved'))
+      }
+    } catch (err: unknown) {
+      toast.error(t('places.mapsSearchError'))
+    } finally {
+      setIsResolvingUrl(false)
+    }
+  }
+
   const handleMapsSearch = async () => {
     if (!mapsSearch.trim()) return
     setIsSearchingMaps(true)
@@ -203,14 +235,7 @@ export default function PlaceFormModal({
       const trimmed = mapsSearch.trim()
       if (isGoogleMapsUrl(trimmed)) {
         const resolved = await mapsApi.resolveUrl(trimmed)
-        if (resolved.lat && resolved.lng) {
-          setForm(prev => ({
-            ...prev,
-            name: resolved.name || prev.name,
-            address: resolved.address || prev.address,
-            lat: String(resolved.lat),
-            lng: String(resolved.lng),
-          }))
+        if (applyResolvedUrl(resolved, false)) {
           setMapsResults([])
           setMapsSearch('')
           toast.success(t('places.urlResolved'))
@@ -536,6 +561,29 @@ export default function PlaceFormModal({
               placeholder={t('places.formLng')}
               className="form-input"
             />
+          </div>
+          <div className="flex gap-2 mt-2">
+            <input
+              type="url"
+              value={googleMapsUrl}
+              onChange={e => setGoogleMapsUrl(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  handleResolveGoogleMapsUrl()
+                }
+              }}
+              placeholder={t('places.googleMapsUrlPlaceholder')}
+              className="form-input"
+            />
+            <button
+              type="button"
+              onClick={handleResolveGoogleMapsUrl}
+              disabled={isResolvingUrl || !googleMapsUrl.trim()}
+              className="bg-slate-900 text-white px-3 rounded-lg text-sm hover:bg-slate-700 disabled:opacity-60 shrink-0"
+            >
+              {isResolvingUrl ? '...' : t('places.extractCoords')}
+            </button>
           </div>
         </div>
 

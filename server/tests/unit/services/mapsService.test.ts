@@ -390,6 +390,14 @@ describe('resolveGoogleMapsUrl coordinate extraction (ReDoS guards)', () => {
     const result = await resolveGoogleMapsUrl('https://www.google.com/maps/@48.8606,2.3376,15z');
     expect(result.name).toBe('Louvre Museum');
   });
+
+  it('MAPS-028e: prefers the last Google data coordinates over viewport coordinates', async () => {
+    vi.stubGlobal('fetch', nominatimStub);
+    const { resolveGoogleMapsUrl } = await import('../../../src/services/mapsService');
+    const result = await resolveGoogleMapsUrl('https://www.google.com/maps/place/Eiffel+Tower/@48.8589385,2.2646339,12z/data=!4m15!1m8!3m7!1s0x47e66e1f06e2b70f:0x40b82c3688c9460!2sParis,+France!3b1!8m2!3d48.8575475!4d2.3513765!16zL20vMDVxdGo!3m5!1s0x47e66e2964e34e2d:0x8ddca9ee380ef7e0!8m2!3d48.8583701!4d2.2944813!16zL20vMDJqODE?entry=ttu');
+    expect(result.lat).toBeCloseTo(48.8583701, 6);
+    expect(result.lng).toBeCloseTo(2.2944813, 6);
+  });
 });
 
 // ── searchNominatim (fetch-dependent) ────────────────────────────────────────

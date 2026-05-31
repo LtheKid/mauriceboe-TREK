@@ -758,27 +758,40 @@ export async function resolveGoogleMapsUrl(url: string): Promise<{ lat: number; 
     resolvedUrl = redirectRes.url;
   }
 
-  // Extract coordinates from Google Maps URL patterns:
-  // /@48.8566,2.3522,15z  or  /place/.../@48.8566,2.3522
-  // ?q=48.8566,2.3522  or  ?ll=48.8566,2.3522
+  // Extract coordinates from Google Maps URL patterns.
+  // Prefer the place-specific data coordinates over the viewport @lat,lng.
   let lat: number | null = null;
   let lng: number | null = null;
   let placeName: string | null = null;
 
-  // Pattern: /@lat,lng
-  const atMatch = resolvedUrl.match(/@(-?\d+\.?\d*),(-?\d+\.?\d*)/);
-  if (atMatch) { lat = parseFloat(atMatch[1]); lng = parseFloat(atMatch[2]); }
+  const setCoords = (match: RegExpMatchArray | null) => {
+    if (!match) return false;
+    const nextLat = parseFloat(match[1]);
+    const nextLng = parseFloat(match[2]);
+    if (isNaN(nextLat) || isNaN(nextLng)) return false;
+    lat = nextLat;
+    lng = nextLng;
+    return true;
+  };
 
-  // Pattern: !3dlat!4dlng (Google Maps data params)
-  if (!lat) {
-    const dataMatch = resolvedUrl.match(/!3d(-?\d+\.?\d*)!4d(-?\d+\.?\d*)/);
-    if (dataMatch) { lat = parseFloat(dataMatch[1]); lng = parseFloat(dataMatch[2]); }
-  }
+  // Pattern: !3dlat!4dlng (Google Maps data params). Multiple pairs may exist;
+  // the last one is typically the selected place, while earlier pairs are context.
+  const dataMatches = Array.from(resolvedUrl.matchAll(/!3d(-?\d+\.?\d*)!4d(-?\d+\.?\d*)/g));
+  if (dataMatches.length > 0) setCoords(dataMatches[dataMatches.length - 1]);
 
   // Pattern: ?q=lat,lng or &q=lat,lng
-  if (!lat) {
-    const qMatch = resolvedUrl.match(/[?&]q=(-?\d+\.?\d*),(-?\d+\.?\d*)/);
-    if (qMatch) { lat = parseFloat(qMatch[1]); lng = parseFloat(qMatch[2]); }
+  if (lat == null || lng == null) {
+    setCoords(resolvedUrl.match(/[?&]q=(-?\d+\.?\d*),(-?\d+\.?\d*)/));
+  }
+
+  // Pattern: ?ll=lat,lng or &ll=lat,lng
+  if (lat == null || lng == null) {
+    setCoords(resolvedUrl.match(/[?&]ll=(-?\d+\.?\d*),(-?\d+\.?\d*)/));
+  }
+
+  // Pattern: /@lat,lng — often the map viewport, so keep it as a fallback.
+  if (lat == null || lng == null) {
+    setCoords(resolvedUrl.match(/@(-?\d+\.?\d*),(-?\d+\.?\d*)/));
   }
 
   // Extract place name from URL path: /place/Place+Name/@...
