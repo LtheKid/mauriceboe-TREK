@@ -155,6 +155,8 @@ export function MapViewGL({
   const mapbox3d = useSettingsStore(s => s.settings.mapbox_3d_enabled !== false)
   const mapboxQuality = useSettingsStore(s => s.settings.mapbox_quality_mode === true)
   const showEndpointLabels = useSettingsStore(s => s.settings.map_booking_labels) !== false
+  const markerMode = useSettingsStore(s => s.settings.map_marker_mode || 'photos')
+  const showMarkerPhotos = markerMode !== 'categories'
   const placesPhotosEnabled = useAuthStore(s => s.placesPhotosEnabled)
   const [photoUrls, setPhotoUrls] = useState<Record<string, string>>(getAllThumbs)
   const [mapReady, setMapReady] = useState(false)
@@ -341,7 +343,7 @@ export function MapViewGL({
   const thumbRafRef = useRef<number | null>(null)
   const placeIds = useMemo(() => places.map(p => p.id).join(','), [places])
   useEffect(() => {
-    if (!places || places.length === 0 || !placesPhotosEnabled) return
+    if (!places || places.length === 0 || !placesPhotosEnabled || !showMarkerPhotos) return
     const cleanups: (() => void)[] = []
 
     const setThumb = (cacheKey: string, thumb: string) => {
@@ -386,7 +388,7 @@ export function MapViewGL({
         thumbRafRef.current = null
       }
     }
-  }, [placeIds, placesPhotosEnabled]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [placeIds, placesPhotosEnabled, showMarkerPhotos]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Reconcile markers with places + photos. Rebuilds the DOM node when any
   // visual input changes so photos, selection state and order badges stay
@@ -407,7 +409,7 @@ export function MapViewGL({
       if (!place.lat || !place.lng) return
       const orderNumbers = dayOrderMap[place.id] ?? null
       const pck = place.google_place_id || place.osm_id || `${place.lat},${place.lng}`
-      const photoUrl = (pck && photoUrls[pck]) || place.image_url || null
+      const photoUrl = showMarkerPhotos ? ((pck && photoUrls[pck]) || place.image_url || null) : null
       const selected = place.id === selectedPlaceId
       const el = createMarkerElement(place as Place & { category_color?: string; category_icon?: string }, photoUrl, orderNumbers, selected)
       el.addEventListener('click', (ev) => {
@@ -428,7 +430,7 @@ export function MapViewGL({
         .addTo(map)
       markersRef.current.set(place.id, m)
     })
-  }, [places, selectedPlaceId, dayOrderMap, photoUrls])
+  }, [places, selectedPlaceId, dayOrderMap, photoUrls, showMarkerPhotos])
 
   // Update route geojson
   useEffect(() => {

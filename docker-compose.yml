@@ -1,6 +1,9 @@
 services:
   app:
-    image: mauriceboe/trek:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: trek-local:latest
     container_name: trek
     read_only: true
     security_opt:
@@ -14,10 +17,10 @@ services:
     tmpfs:
       - /tmp:noexec,nosuid,size=64m
     ports:
-      - "3000:3000"
+      - "3001:3001"
     environment:
       - NODE_ENV=production
-      - PORT=3000
+      - PORT=3001
       - ENCRYPTION_KEY=${ENCRYPTION_KEY:-} # Recommended. Generate with: openssl rand -hex 32. If unset, falls back to data/.jwt_secret (existing installs) or auto-generates a key (fresh installs).
       - TZ=${TZ:-UTC} # Timezone for logs, reminders and scheduled tasks (e.g. Europe/Berlin)
       - LOG_LEVEL=${LOG_LEVEL:-info} # info = concise user actions; debug = verbose admin-level details
@@ -38,8 +41,8 @@ services:
 #      - OIDC_ADMIN_VALUE=app-trek-admins # Value of the OIDC claim that grants admin role
 #      - OIDC_SCOPE=openid email profile # Fully overrides the default. Add extra scopes as needed (e.g. add groups if using OIDC_ADMIN_CLAIM)
 #      - OIDC_DISCOVERY_URL= # Override the OIDC discovery endpoint for providers with non-standard paths (e.g. Authentik)
-#      - ADMIN_EMAIL=admin@trek.local # Initial admin e-mail — only used on first boot when no users exist
-#      - ADMIN_PASSWORD=changeme      # Initial admin password — only used on first boot when no users exist
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-} # Initial admin e-mail — only used on first boot when no users exist
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-} # Initial admin password — only used on first boot when no users exist
 #      - MCP_RATE_LIMIT=300 # Max MCP API requests per user per minute (default: 300)
 #      - MCP_MAX_SESSION_PER_USER=20 # Max concurrent MCP sessions per user (default: 20)
     volumes:
@@ -47,7 +50,7 @@ services:
       - ./uploads:/app/uploads
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
+      test: ["CMD", "wget", "-qO-", "http://localhost:3001/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3

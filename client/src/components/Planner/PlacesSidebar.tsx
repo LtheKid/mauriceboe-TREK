@@ -200,8 +200,8 @@ const PlacesSidebar = React.memo(function PlacesSidebar({
   const [listImportOpen, setListImportOpen] = useState(false)
   const [listImportUrl, setListImportUrl] = useState('')
   const [listImportLoading, setListImportLoading] = useState(false)
-  const [listImportProvider, setListImportProvider] = useState<'google' | 'naver'>('google')
-  const availableListImportProviders: Array<'google' | 'naver'> = isNaverListImportEnabled ? ['google', 'naver'] : ['google']
+  const [listImportProvider, setListImportProvider] = useState<'google' | 'route' | 'naver'>('google')
+  const availableListImportProviders: Array<'google' | 'route' | 'naver'> = isNaverListImportEnabled ? ['google', 'route', 'naver'] : ['google', 'route']
   const hasMultipleListImportProviders = availableListImportProviders.length > 1
 
   useEffect(() => {
@@ -213,28 +213,45 @@ const PlacesSidebar = React.memo(function PlacesSidebar({
   const handleListImport = async () => {
     if (!listImportUrl.trim()) return
     setListImportLoading(true)
-    const provider = listImportProvider === 'naver' && isNaverListImportEnabled ? 'naver' : 'google'
+    const provider = listImportProvider === 'naver' && isNaverListImportEnabled ? 'naver' : listImportProvider
     try {
       const result = provider === 'google'
         ? await placesApi.importGoogleList(tripId, listImportUrl.trim())
-        : await placesApi.importNaverList(tripId, listImportUrl.trim())
+        : provider === 'route'
+          ? await placesApi.importGoogleRoute(tripId, listImportUrl.trim())
+          : await placesApi.importNaverList(tripId, listImportUrl.trim())
       await loadTrip(tripId)
       if (result.count === 0 && result.skipped > 0) {
         toast.warning(t('places.importAllSkipped'))
       } else {
-        toast.success(t(provider === 'google' ? 'places.googleListImported' : 'places.naverListImported', { count: result.count, list: result.listName }))
+        const successKey = provider === 'google'
+          ? 'places.googleListImported'
+          : provider === 'route'
+            ? 'places.googleRouteImported'
+            : 'places.naverListImported'
+        toast.success(t(successKey, { count: result.count, list: result.listName }))
       }
       setListImportOpen(false)
       setListImportUrl('')
       if (result.places?.length > 0) {
         const importedIds: number[] = result.places.map((p: { id: number }) => p.id)
-        pushUndo?.(t(provider === 'google' ? 'undo.importGoogleList' : 'undo.importNaverList'), async () => {
+        const undoKey = provider === 'google'
+          ? 'undo.importGoogleList'
+          : provider === 'route'
+            ? 'undo.importGoogleRoute'
+            : 'undo.importNaverList'
+        pushUndo?.(t(undoKey), async () => {
           try { await placesApi.bulkDelete(tripId, importedIds) } catch {}
           await loadTrip(tripId)
         })
       }
     } catch (err: any) {
-      toast.error(err?.response?.data?.error || t(provider === 'google' ? 'places.googleListError' : 'places.naverListError'))
+      const errorKey = provider === 'google'
+        ? 'places.googleListError'
+        : provider === 'route'
+          ? 'places.googleRouteError'
+          : 'places.naverListError'
+      toast.error(err?.response?.data?.error || t(errorKey))
     } finally {
       setListImportLoading(false)
     }
@@ -786,20 +803,20 @@ const PlacesSidebar = React.memo(function PlacesSidebar({
                       color: listImportProvider === provider ? 'var(--accent-text)' : 'var(--text-muted)',
                     }}
                   >
-                    {provider === 'google' ? t('places.importGoogleList') : t('places.importNaverList')}
+                    {provider === 'google' ? t('places.importGoogleList') : provider === 'route' ? t('places.importGoogleRoute') : t('places.importNaverList')}
                   </button>
                 ))}
               </div>
             )}
             <div style={{ fontSize: 12, color: 'var(--text-faint)', marginBottom: 16 }}>
-              {t(listImportProvider === 'google' ? 'places.googleListHint' : 'places.naverListHint')}
+              {t(listImportProvider === 'google' ? 'places.googleListHint' : listImportProvider === 'route' ? 'places.googleRouteHint' : 'places.naverListHint')}
             </div>
             <input
               type="text"
               value={listImportUrl}
               onChange={e => setListImportUrl(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && !listImportLoading) handleListImport() }}
-              placeholder={listImportProvider === 'google' ? 'https://maps.app.goo.gl/...' : 'https://naver.me/...'}
+              placeholder={listImportProvider === 'naver' ? 'https://naver.me/...' : listImportProvider === 'route' ? 'https://www.google.com/maps/dir/...' : 'https://maps.app.goo.gl/...'}
               autoFocus
               style={{
                 width: '100%', padding: '10px 14px', borderRadius: 10,

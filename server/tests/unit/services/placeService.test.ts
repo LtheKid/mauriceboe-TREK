@@ -40,6 +40,9 @@ vi.mock('../../../src/config', () => ({
   ENCRYPTION_KEY: 'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6a7b8c9d0e1f2a3b4c5d6a7b8c9d0e1f2',
   updateJwtSecret: () => {},
 }));
+vi.mock('../../../src/utils/ssrfGuard', () => ({
+  checkSsrf: vi.fn().mockResolvedValue({ allowed: true }),
+}));
 
 import { createTables } from '../../../src/db/schema';
 import { runMigrations } from '../../../src/db/migrations';
@@ -47,7 +50,7 @@ import { resetTestDb } from '../../helpers/test-db';
 import { createUser, createTrip, createPlace, createCategory, createTag } from '../../helpers/factories';
 import path from 'path';
 import fs from 'fs';
-import { listPlaces, createPlace as svcCreatePlace, getPlace, updatePlace, deletePlace, importGpx, importKmlPlaces, importGoogleList, searchPlaceImage } from '../../../src/services/placeService';
+import { listPlaces, createPlace as svcCreatePlace, getPlace, updatePlace, deletePlace, importGpx, importKmlPlaces, importGoogleRoute, importGoogleList, searchPlaceImage } from '../../../src/services/placeService';
 
 const GPX_FIXTURE = path.join(__dirname, '../../fixtures/test.gpx');
 const KML_FIXTURE = path.join(__dirname, '../../fixtures/test.kml');
@@ -497,6 +500,53 @@ describe('importGpx deduplication', () => {
 
     const total = (listPlaces(String(trip.id), {}) as any[]).length;
     expect(total).toBe(first.count + 1);
+  });
+});
+
+describe('importGoogleRoute', () => {
+  it('PLACE-SVC-037 — imports coordinate route stops as unplanned places', async () => {
+    const { user } = createUser(testDb);
+    const trip = createTrip(testDb, user.id);
+
+    const result = await importGoogleRoute(String(trip.id), 'https://www.google.com/maps/dir/-6.127164,106.652988/-6.116454,106.681852/-6.246141,106.884281') as any;
+
+    expect(result.places).toHaveLength(3);
+    expect(result.places.map((p: any) => p.name)).toEqual([
+      '-6.127164,106.652988',
+      '-6.116454,106.681852',
+      '-6.246141,106.884281',
+    ]);
+    expect(result.places[0].lat).toBeCloseTo(-6.127164, 6);
+    expect(result.places[2].lng).toBeCloseTo(106.884281, 6);
+    expect(listPlaces(String(trip.id), { assignment: 'unassigned' }) as any[]).toHaveLength(3);
+  });
+
+  it('PLACE-SVC-038 — imports named route stops with embedded data coordinates', async () => {
+    const { user } = createUser(testDb);
+    const trip = createTrip(testDb, user.id);
+    const url = 'https://www.google.com/maps/dir/Buona+Vista+MRT+Station+(CC22),+150+N+Buona+Vista+Rd.,+Singapore+139350/HOUSE+DOWNSTAIRS,+170+Ghim+Moh+Rd,+%2301-03,+Ulu+Pandan+CC,+Singapore+279621/20+Ghim+Moh+Road+Market+%26+Food+Centre,+20+Ghim+Moh+Rd,+Singapore+270020/@1.3098384,103.7913446,17.1z/data=!3m1!5s0x31da107f3b7a5e81:0x6aa35cfef8a2b1d9!4m20!4m19!1m5!1m1!1s0x31da1bfab475eded:0x7409580604fc56a!2m2!1d103.7907631!2d1.3065476!1m5!1m1!1s0x31da1b427c9accc5:0x67d5bfd005c9a2e6!2m2!1d103.7890146!2d1.3121158!1m5!1m1!1s0x31da1a68ec5eaf37:0xe8691d8a34a7a8b2!2m2!1d103.7883085!2d1.3109708!3e2?entry=ttu';
+
+    const result = await importGoogleRoute(String(trip.id), url) as any;
+
+    expect(result.places).toHaveLength(3);
+    expect(result.places[0].name).toContain('Buona Vista MRT Station');
+    expect(result.places[0].lat).toBeCloseTo(1.3065476, 6);
+    expect(result.places[0].lng).toBeCloseTo(103.7907631, 6);
+    expect(result.places[1].name).toContain('HOUSE DOWNSTAIRS');
+    expect(result.places[2].name).toContain('20 Ghim Moh Road Market & Food Centre');
+  });
+
+  it('PLACE-SVC-039 — skips duplicates on repeated route import', async () => {
+    const { user } = createUser(testDb);
+    const trip = createTrip(testDb, user.id);
+    const url = 'https://www.google.com/maps/dir/-6.127164,106.652988/-6.116454,106.681852';
+
+    const first = await importGoogleRoute(String(trip.id), url) as any;
+    const second = await importGoogleRoute(String(trip.id), url) as any;
+
+    expect(first.places).toHaveLength(2);
+    expect(second.places).toHaveLength(0);
+    expect(second.skipped).toBe(2);
   });
 });
 

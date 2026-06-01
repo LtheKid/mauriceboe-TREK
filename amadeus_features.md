@@ -1,5 +1,47 @@
 # Amadeus Features
 
+## 2026-06-01 — Map marker display mode
+
+### What
+Added a Map setting that lets users choose whether map markers display place photos when available or always display category icons/colors.
+
+### Files changed
+
+| File | Change |
+|------|--------|
+| `client/src/types.ts` | Added `map_marker_mode` to user settings. |
+| `client/src/store/settingsStore.ts` | Added default marker mode of `photos`. |
+| `client/src/components/Settings/MapSettingsTab.tsx` | Added Marker Display Mode selector with `Photos` and `Category icons` options. |
+| `client/src/components/Map/MapView.tsx` | Leaflet markers now respect marker mode and skip marker photo loading/rendering when category mode is selected. |
+| `client/src/components/Map/MapViewGL.tsx` | Mapbox markers now respect marker mode and skip marker photo loading/rendering when category mode is selected. |
+| `client/src/i18n/translations/en.ts` | Added English marker mode setting labels and descriptions. |
+
+### Behavior
+- `Photos`: existing behavior — use place photos when available, then fall back to category icons/colors.
+- `Category icons`: always render category icons/colors for map markers, even if photos exist.
+- Sidebar/place avatars remain unchanged and may still show photos; this setting targets map marker clarity.
+
+## 2026-06-01 — Google Maps route URL import
+
+### What
+Added support for importing Google Maps directions URLs as unplanned places. Route stops are parsed in order and added to the trip place list without assigning them to any day.
+
+### Files changed
+
+| File | Change |
+|------|--------|
+| `server/src/services/placeService.ts` | Added Google Maps route URL parsing/import. Supports coordinate path segments like `/maps/dir/lat,lng/lat,lng` and named route URLs with embedded `!1d{lng}!2d{lat}` stop coordinates. Uses existing duplicate detection and inserts imported stops as normal places. |
+| `server/src/routes/places.ts` | Added `POST /api/trips/:tripId/places/import/google-route` with the same auth, permission checks, response shape, and WebSocket broadcasts as existing list imports. |
+| `client/src/api/client.ts` | Added `placesApi.importGoogleRoute()`. |
+| `client/src/components/Planner/PlacesSidebar.tsx` | Extended the existing List Import modal with a `Google Route` provider. Successful imports reload the trip, show a toast, and register undo via bulk delete. |
+| `client/src/i18n/translations/en.ts` | Added English strings for Google Route import labels, hints, success/error messages, and undo text. |
+
+### Behavior
+- Accepts Google Maps directions URLs such as `https://www.google.com/maps/dir/-6.127164,106.652988/-6.116454,106.681852/-6.246141,106.884281`.
+- Accepts named Google route URLs where each stop's coordinates appear in the `/data=` section as `!2m2!1d{lng}!2d{lat}`.
+- Imported stops remain unplanned places; users can assign them to days manually.
+- Duplicate places are skipped using the existing import deduplication rules.
+
 ## 2026-05-31 — Google Maps URL coordinate extraction (Add Place modal)
 
 ### What

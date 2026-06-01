@@ -576,6 +576,117 @@ export async function importMapFile(tripId: string, fileBuffer: Buffer, filename
 }
 
 // ---------------------------------------------------------------------------
+// Import Google Maps route
+// ---------------------------------------------------------------------------
+
+function isGoogleMapsRouteUrl(input: string): boolean {
+  try {
+    const parsed = new URL(input);
+    const host = parsed.hostname.toLowerCase();
+    const bareHost = host.startsWith('www.') ? host.slice(4) : host;
+    return parsed.pathname.startsWith('/maps/dir') && (
+      /^google\.[a-z]{2,3}(\.[a-z]{2})?$/.test(bareHost) ||
+      /^maps\.google\.[a-z]{2,3}(\.[a-z]{2})?$/.test(host)
+    );
+  } catch {
+    return false;
+  }
+}
+
+function decodeGoogleRouteSegment(segment: string): string {
+  try {
+    return decodeURIComponent(segment.replace(/\+/g, ' ')).trim();
+  } catch {
+    return segment.replace(/\+/g, ' ').trim();
+  }
+}
+
+function parseLatLngPair(value: string): { lat: number; lng: number } | null {
+  const match = value.match(/^(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)$/);
+  if (!match) return null;
+  const lat = Number(match[1]);
+  const lng = Number(match[2]);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  return { lat, lng };
+}
+
+function extractGoogleRouteStops(resolvedUrl: string): Array<{ name: string; lat: number; lng: number }> {
+  const parsed = new URL(resolvedUrl);
+  if (!parsed.pathname.startsWith('/maps/dir')) return [];
+
+  const routePart = parsed.pathname.replace(/^\/maps\/dir\/?/, '');
+  const rawSegments = routePart.split('/').filter(Boolean).filter(s => s !== 'data');
+  const segments = rawSegments.map(segment => {
+    const decoded = decodeGoogleRouteSegment(segment);
+    const coords = parseLatLngPair(decoded);
+    return { decoded, coords };
+  });
+
+  const coordinateSegments = segments.filter(s => s.coords);
+  if (coordinateSegments.length > 0) {
+    return coordinateSegments.map((segment, index) => ({
+      name: segment.decoded || `Stop ${index + 1}`,
+      lat: segment.coords!.lat,
+      lng: segment.coords!.lng,
+    }));
+  }
+
+  const dataMatches = Array.from(resolvedUrl.matchAll(/!2m2!1d(-?\d+(?:\.\d+)?)!2d(-?\d+(?:\.\d+)?)/g));
+  return dataMatches.map((match, index) => ({
+    name: segments[index]?.decoded || `Stop ${index + 1}`,
+    lat: Number(match[2]),
+    lng: Number(match[1]),
+  })).filter(stop => stop.name && Number.isFinite(stop.lat) && Number.isFinite(stop.lng));
+}
+
+export async function importGoogleRoute(tripId: string, url: string) {
+  let resolvedUrl = url;
+
+  const ssrf = await checkSsrf(url);
+  if (!ssrf.allowed) return { error: 'URL is not allowed', status: 400 };
+
+  let parsedUrl: URL;
+  try { parsedUrl = new URL(url); } catch { return { error: 'Invalid URL', status: 400 }; }
+  if (['goo.gl', 'maps.app.goo.gl'].includes(parsedUrl.hostname.toLowerCase())) {
+    const redirectRes = await fetch(url, { redirect: 'follow', signal: AbortSignal.timeout(10000) });
+    resolvedUrl = redirectRes.url;
+  }
+
+  if (!isGoogleMapsRouteUrl(resolvedUrl)) {
+    return { error: 'Please use a Google Maps directions URL.', status: 400 };
+  }
+
+  const stops = extractGoogleRouteStops(resolvedUrl);
+  if (stops.length === 0) {
+    return { error: 'No route stops with coordinates found in URL.', status: 400 };
+  }
+
+  const dedup = buildDedupSet(tripId);
+  const insertStmt = db.prepare(`
+    INSERT INTO places (trip_id, name, lat, lng, notes, transport_mode)
+    VALUES (?, ?, ?, ?, ?, 'walking')
+  `);
+  const created: any[] = [];
+  let skipped = 0;
+  const insertAll = db.transaction(() => {
+    stops.forEach((stop, index) => {
+      if (isPlaceDuplicate({ name: stop.name, lat: stop.lat, lng: stop.lng }, dedup)) {
+        skipped++;
+        return;
+      }
+      const notes = `Imported from Google Maps route • Stop ${index + 1} of ${stops.length}`;
+      const result = insertStmt.run(tripId, stop.name, stop.lat, stop.lng, notes);
+      const place = getPlaceWithTags(Number(result.lastInsertRowid));
+      created.push(place);
+      trackInsertedInDedupSet({ name: stop.name, lat: stop.lat, lng: stop.lng }, dedup);
+    });
+  });
+  insertAll();
+
+  return { places: created, listName: 'Google Maps Route', skipped };
+}
+
+// ---------------------------------------------------------------------------
 // Import Google Maps list
 // ---------------------------------------------------------------------------
 

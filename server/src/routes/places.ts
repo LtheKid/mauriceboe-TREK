@@ -15,6 +15,7 @@ import {
   deletePlacesMany,
   importGpx,
   importMapFile,
+  importGoogleRoute,
   importGoogleList,
   importNaverList,
   searchPlaceImage,
@@ -120,6 +121,33 @@ router.post('/import/map', authenticate, requireTripAccess, uploadMulter.single(
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Failed to import map file';
     res.status(400).json({ error: message });
+  }
+});
+
+// Import places from a Google Maps route URL
+router.post('/import/google-route', authenticate, requireTripAccess, async (req: Request, res: Response) => {
+  const authReq = req as AuthRequest;
+  if (!checkPermission('place_edit', authReq.user.role, authReq.trip!.user_id, authReq.user.id, authReq.trip!.user_id !== authReq.user.id))
+    return res.status(403).json({ error: 'No permission' });
+
+  const { tripId } = req.params;
+  const { url } = req.body;
+  if (!url || typeof url !== 'string') return res.status(400).json({ error: 'URL is required' });
+
+  try {
+    const result = await importGoogleRoute(tripId, url);
+
+    if ('error' in result) {
+      return res.status(result.status).json({ error: result.error });
+    }
+
+    res.status(201).json({ places: result.places, count: result.places.length, listName: result.listName, skipped: result.skipped });
+    for (const place of result.places) {
+      broadcast(tripId, 'place:created', { place }, req.headers['x-socket-id'] as string);
+    }
+  } catch (err: unknown) {
+    console.error('[Places] Google route import error:', err instanceof Error ? err.message : err);
+    res.status(400).json({ error: 'Failed to import Google Maps route.' });
   }
 });
 

@@ -29,14 +29,14 @@ RUN rm -f package-lock.json && \
     chown -R node:node /app
 
 ENV NODE_ENV=production
-ENV PORT=3000
+ENV PORT=3001
 ARG APP_VERSION=dev
 ENV APP_VERSION=${APP_VERSION}
 
-EXPOSE 3000
+EXPOSE 3001
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-  CMD wget -qO- http://localhost:3000/api/health || exit 1
+  CMD wget -qO- http://localhost:3001/api/health || exit 1
 
 ENTRYPOINT ["dumb-init", "--"]
 CMD ["sh", "-c", "chown -R node:node /app/data /app/uploads 2>/dev/null || true; exec su-exec node node --import tsx src/index.ts"]

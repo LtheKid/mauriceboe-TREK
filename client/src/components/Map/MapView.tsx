@@ -10,6 +10,7 @@ import { mapsApi } from '../../api/client'
 import { getCategoryIcon, CATEGORY_ICON_MAP } from '../shared/categoryIcons'
 import ReservationOverlay from './ReservationOverlay'
 import type { Reservation } from '../../types'
+import { useSettingsStore } from '../../store/settingsStore'
 
 function categoryIconSvg(iconName: string | null | undefined, size: number): string {
   const IconComponent = (iconName && CATEGORY_ICON_MAP[iconName]) || CATEGORY_ICON_MAP['MapPin']
@@ -429,6 +430,8 @@ export const MapView = memo(function MapView({
   // photoUrls: only base64 thumbs for smooth map zoom
   const [photoUrls, setPhotoUrls] = useState<Record<string, string>>(getAllThumbs)
   const placesPhotosEnabled = useAuthStore(s => s.placesPhotosEnabled)
+  const markerMode = useSettingsStore(s => s.settings.map_marker_mode || 'photos')
+  const showMarkerPhotos = markerMode !== 'categories'
   // Batch photo state updates through a RAF so N simultaneous photo loads
   // collapse into a single re-render instead of N separate renders.
   const pendingThumbsRef = useRef<Record<string, string>>({})
@@ -436,7 +439,7 @@ export const MapView = memo(function MapView({
 
   const placeIds = useMemo(() => places.map(p => p.id).join(','), [places])
   useEffect(() => {
-    if (!places || places.length === 0 || !placesPhotosEnabled) return
+    if (!places || places.length === 0 || !placesPhotosEnabled || !showMarkerPhotos) return
     const cleanups: (() => void)[] = []
 
     const setThumb = (cacheKey: string, thumb: string) => {
@@ -484,7 +487,7 @@ export const MapView = memo(function MapView({
         thumbRafRef.current = null
       }
     }
-  }, [placeIds, placesPhotosEnabled])
+  }, [placeIds, placesPhotosEnabled, showMarkerPhotos])
 
   const clusterIconCreateFunction = useCallback((cluster) => {
     const count = cluster.getChildCount()
@@ -501,7 +504,7 @@ export const MapView = memo(function MapView({
   const markers = useMemo(() => places.map((place) => {
     const isSelected = place.id === selectedPlaceId
     const pck = place.google_place_id || place.osm_id || `${place.lat},${place.lng}`
-    const photoUrl = (pck && photoUrls[pck]) || place.image_url || null
+    const photoUrl = showMarkerPhotos ? ((pck && photoUrls[pck]) || place.image_url || null) : null
     const orderNumbers = dayOrderMap[place.id] ?? null
     return (
       <MemoMarker
@@ -515,7 +518,7 @@ export const MapView = memo(function MapView({
         onHoverOut={handleMarkerHoverOut}
       />
     )
-  }), [places, selectedPlaceId, dayOrderMap, photoUrls, handleMarkerClick, handleMarkerHover, handleMarkerHoverOut])
+  }), [places, selectedPlaceId, dayOrderMap, photoUrls, showMarkerPhotos, handleMarkerClick, handleMarkerHover, handleMarkerHoverOut])
 
   const gpxPolylines = useMemo(() => places.flatMap(place => {
     if (!place.route_geometry) return []

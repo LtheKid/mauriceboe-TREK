@@ -77,10 +77,10 @@ A self-hosted, real-time collaborative travel planner — with maps, budgets, pa
 #### 🧭 Trip planning
 
 - **Drag & drop planner** — organise places into day plans with reordering and cross-day moves
-- **Interactive map** — Leaflet or Mapbox GL with 3D buildings, terrain, photo markers, clustering, route visualization
-- **Place search** — Google Places (photos, ratings, hours) or OpenStreetMap (free, no API key)
+- **Interactive map** — Leaflet or Mapbox GL with 3D buildings, terrain, photo/category marker modes, clustering, route visualization
+- **Place search & imports** — Google Places/OpenStreetMap search, GPX/KML/KMZ uploads, Google/Naver list imports, Google route URL stop imports, and Google Maps URL coordinate extraction
 - **Day notes** — timestamped, icon-tagged notes with drag-and-drop reordering
-- **Route optimisation** — auto-sort places and export to Google Maps
+- **Route optimisation** — auto-sort places, open/export routes to Google Maps, and import Google Maps route stops as unplanned places
 - **Weather forecasts** — 16-day via Open-Meteo (no key) + historical climate fallback
 - **Category filter** — show only matching pins on the map
 
@@ -134,7 +134,7 @@ A self-hosted, real-time collaborative travel planner — with maps, budgets, pa
 - **Vacay** — personal vacation planner with calendar, 100+ country holidays, carry-over tracking
 - **Atlas** — world map of visited countries, bucket list, travel stats, streak tracking, liquid-glass UI
 - **Journey** — magazine-style travel journal with entries, photos (Immich/Synology), maps, moods
-- **Naver List Import** — one-click import from shared Naver Maps lists
+- **Map imports** — import GPX/KML/KMZ files, shared Google/Naver Maps lists, and Google Maps route URLs
 - **MCP** — expose TREK to AI assistants via OAuth 2.1
 
 </td>

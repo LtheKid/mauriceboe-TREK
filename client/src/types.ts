@@ -218,6 +218,7 @@ export interface Settings {
   route_calculation?: boolean
   blur_booking_codes?: boolean
   map_booking_labels?: boolean
+  map_marker_mode?: 'photos' | 'categories'
   map_provider?: 'leaflet' | 'mapbox-gl'
   mapbox_access_token?: string
   mapbox_style?: string

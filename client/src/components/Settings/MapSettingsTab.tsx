@@ -131,6 +131,7 @@ function StyleDropdown({ value, onChange }: { value: string; onChange: (v: strin
 }
 
 type Provider = 'leaflet' | 'mapbox-gl'
+type MarkerMode = 'photos' | 'categories'
 
 export default function MapSettingsTab(): React.ReactElement {
   const { settings, updateSettings } = useSettingsStore()
@@ -138,6 +139,7 @@ export default function MapSettingsTab(): React.ReactElement {
   const toast = useToast()
   const [saving, setSaving] = useState(false)
   const [provider, setProvider] = useState<Provider>((settings.map_provider as Provider) || 'leaflet')
+  const [markerMode, setMarkerMode] = useState<MarkerMode>((settings.map_marker_mode as MarkerMode) || 'photos')
   const [mapTileUrl, setMapTileUrl] = useState<string>(settings.map_tile_url || '')
   const [mapboxToken, setMapboxToken] = useState<string>(settings.mapbox_access_token || '')
   const [mapboxStyle, setMapboxStyle] = useState<string>(settings.mapbox_style || 'mapbox://styles/mapbox/standard')
@@ -149,6 +151,7 @@ export default function MapSettingsTab(): React.ReactElement {
 
   useEffect(() => {
     setProvider((settings.map_provider as Provider) || 'leaflet')
+    setMarkerMode((settings.map_marker_mode as MarkerMode) || 'photos')
     setMapTileUrl(settings.map_tile_url || '')
     setMapboxToken(settings.mapbox_access_token || '')
     setMapboxStyle(settings.mapbox_style || 'mapbox://styles/mapbox/standard')
@@ -189,6 +192,7 @@ export default function MapSettingsTab(): React.ReactElement {
     try {
       await updateSettings({
         map_provider: provider,
+        map_marker_mode: markerMode,
         map_tile_url: mapTileUrl,
         mapbox_access_token: mapboxToken,
         mapbox_style: mapboxStyle,
@@ -257,6 +261,43 @@ export default function MapSettingsTab(): React.ReactElement {
         <p className="text-xs text-slate-400 mt-2">
           {t('settings.mapProviderHint')}
         </p>
+      </div>
+
+      {/* Marker display mode */}
+      <div>
+        <label className="block text-sm font-medium text-slate-700 mb-2">{t('settings.mapMarkerMode')}</label>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => setMarkerMode('photos')}
+            className={`flex items-start gap-3 p-3 rounded-lg border text-left transition-colors ${
+              markerMode === 'photos'
+                ? 'border-slate-900 bg-slate-50 dark:bg-slate-800 dark:border-slate-200'
+                : 'border-slate-200 hover:border-slate-400 dark:border-slate-700'
+            }`}
+          >
+            <Map size={18} className="mt-0.5 flex-shrink-0 text-slate-700 dark:text-slate-300" />
+            <div>
+              <div className="text-sm font-medium text-slate-900 dark:text-white">{t('settings.mapMarkerPhotos')}</div>
+              <div className="hidden sm:block text-xs text-slate-500 mt-0.5">{t('settings.mapMarkerPhotosHint')}</div>
+            </div>
+          </button>
+          <button
+            type="button"
+            onClick={() => setMarkerMode('categories')}
+            className={`flex items-start gap-3 p-3 rounded-lg border text-left transition-colors ${
+              markerMode === 'categories'
+                ? 'border-slate-900 bg-slate-50 dark:bg-slate-800 dark:border-slate-200'
+                : 'border-slate-200 hover:border-slate-400 dark:border-slate-700'
+            }`}
+          >
+            <Layers size={18} className="mt-0.5 flex-shrink-0 text-slate-700 dark:text-slate-300" />
+            <div>
+              <div className="text-sm font-medium text-slate-900 dark:text-white">{t('settings.mapMarkerCategories')}</div>
+              <div className="hidden sm:block text-xs text-slate-500 mt-0.5">{t('settings.mapMarkerCategoriesHint')}</div>
+            </div>
+          </button>
+        </div>
       </div>
 
       {/* Leaflet settings */}
