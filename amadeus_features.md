@@ -1,5 +1,25 @@
 # Amadeus Features
 
+## 2026-06-02 — Consolidated trip export menu
+
+### What
+Replaced separate PDF and ICS toolbar buttons in the day planner with a single **Export** button that opens a menu. The menu currently contains PDF and ICS Calendar export options and is ready for more export formats later.
+
+### Files changed
+
+| File | Change |
+|------|--------|
+| `client/src/components/Planner/DayPlanSidebar.tsx` | Extracted PDF/ICS handlers and replaced separate buttons/tooltips with one Export dropdown menu. |
+| `client/src/i18n/translations/en.ts` | Added export menu labels for Export, PDF, and ICS Calendar. |
+| `README.md` | Updated feature summary to describe the export menu. |
+| `local-readme.md` | Added local feature note for the export menu. |
+
+### Behavior
+- Day planner toolbar now shows a single `Export` button.
+- Clicking it opens a menu with `PDF` and `ICS Calendar`.
+- Selecting PDF runs the existing trip PDF export.
+- Selecting ICS Calendar downloads the existing `.ics` calendar file.
+
 ## 2026-06-01 — Map marker display mode
 
 ### What

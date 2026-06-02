@@ -26,6 +26,7 @@ This checkout includes local improvements for map/place import workflows:
 - Places sidebar → List Import → Google Route: paste a Google Maps directions URL and import its route stops as unplanned places.
 - Supported route URL styles include coordinate routes such as `/maps/dir/lat,lng/lat,lng` and named Google route URLs with embedded stop coordinates.
 - Settings → Map → Marker Display Mode: choose photo markers or always show category icons/colors.
+- Day Planner toolbar: one Export menu now contains PDF and ICS calendar export options.
 
 After changing code, rebuild the local Docker image/container with:
 

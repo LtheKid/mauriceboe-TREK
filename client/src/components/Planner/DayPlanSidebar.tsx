@@ -255,8 +255,7 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
   const [lockedIds, setLockedIds] = useState(new Set())
   const [lockHoverId, setLockHoverId] = useState(null)
   const [undoHover, setUndoHover] = useState(false)
-  const [pdfHover, setPdfHover] = useState(false)
-  const [icsHover, setIcsHover] = useState(false)
+  const [exportMenuOpen, setExportMenuOpen] = useState(false)
   const [hoveredAssignmentId, setHoveredAssignmentId] = useState<number | null>(null)
   const [dropTargetKey, _setDropTargetKey] = useState(null)
   const dropTargetRef = useRef(null)
@@ -858,6 +857,34 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
     return s + da.reduce((s2, a) => s2 + (parseFloat(a.place?.price) || 0), 0)
   }, 0), [days, assignments])
 
+  const handleExportPdf = async () => {
+    const flatNotes = Object.entries(dayNotes).flatMap(([dayId, notes]) =>
+      notes.map(n => ({ ...n, day_id: Number(dayId) }))
+    )
+    try {
+      await downloadTripPDF({ trip, days, places, assignments, categories, dayNotes: flatNotes, reservations, t, locale })
+    } catch (e) {
+      console.error('PDF error:', e)
+      toast.error(t('dayplan.pdfError') + ': ' + (e?.message || String(e)))
+    }
+  }
+
+  const handleExportIcs = async () => {
+    try {
+      const res = await fetch(`/api/trips/${tripId}/export.ics`, {
+        credentials: 'include',
+      })
+      if (!res.ok) throw new Error()
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${trip?.title || 'trip'}.ics`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch { toast.error(t('planner.icsExportFailed')) }
+  }
+
   // Bester verfügbarer Standort für Wetter: zugewiesene Orte zuerst, dann beliebiger Reiseort
   const anyGeoAssignment = Object.values(assignments).flatMap(da => da).find(a => a.place?.lat && a.place?.lng)
   const anyGeoPlace = anyGeoAssignment || (places || []).find(p => p.lat && p.lng)
@@ -869,19 +896,7 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
           <div style={{ position: 'relative', flexShrink: 0 }}>
             <button
-              onClick={async () => {
-                const flatNotes = Object.entries(dayNotes).flatMap(([dayId, notes]) =>
-                  notes.map(n => ({ ...n, day_id: Number(dayId) }))
-                )
-                try {
-                  await downloadTripPDF({ trip, days, places, assignments, categories, dayNotes: flatNotes, reservations, t, locale })
-                } catch (e) {
-                  console.error('PDF error:', e)
-                  toast.error(t('dayplan.pdfError') + ': ' + (e?.message || String(e)))
-                }
-              }}
-              onMouseEnter={() => setPdfHover(true)}
-              onMouseLeave={() => setPdfHover(false)}
+              onClick={() => setExportMenuOpen(v => !v)}
               style={{
                 display: 'flex', alignItems: 'center', gap: 5,
                 padding: '5px 10px', borderRadius: 8, border: 'none',
@@ -890,61 +905,53 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
               }}
             >
               <FileDown size={13} strokeWidth={2} />
-              {t('dayplan.pdf')}
+              {t('dayplan.export')}
+              <ChevronDown size={12} strokeWidth={2} />
             </button>
-            {pdfHover && (
-              <div style={{
-                position: 'absolute', top: 'calc(100% + 6px)', right: 0,
-                whiteSpace: 'nowrap', pointerEvents: 'none', zIndex: 200,
-                background: 'var(--bg-card, white)', color: 'var(--text-primary, #111827)',
-                fontSize: 11, fontWeight: 500, padding: '5px 10px',
-                borderRadius: 8, boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                border: '1px solid var(--border-faint, #e5e7eb)',
-              }}>
-                {t('dayplan.pdfTooltip')}
-              </div>
-            )}
-          </div>
-          <div style={{ position: 'relative', flexShrink: 0 }}>
-            <button
-              onClick={async () => {
-                try {
-                  const res = await fetch(`/api/trips/${tripId}/export.ics`, {
-                    credentials: 'include',
-                  })
-                  if (!res.ok) throw new Error()
-                  const blob = await res.blob()
-                  const url = URL.createObjectURL(blob)
-                  const a = document.createElement('a')
-                  a.href = url
-                  a.download = `${trip?.title || 'trip'}.ics`
-                  a.click()
-                  URL.revokeObjectURL(url)
-                } catch { toast.error(t('planner.icsExportFailed')) }
-              }}
-              onMouseEnter={() => setIcsHover(true)}
-              onMouseLeave={() => setIcsHover(false)}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 5,
-                padding: '5px 10px', borderRadius: 8,
-                border: '1px solid var(--border-primary)', background: 'none',
-                color: 'var(--text-muted)', fontSize: 11, fontWeight: 500,
-                cursor: 'pointer', fontFamily: 'inherit',
-              }}
-            >
-              <FileDown size={13} strokeWidth={2} />
-              ICS
-            </button>
-            {icsHover && (
-              <div style={{
-                position: 'absolute', top: 'calc(100% + 6px)', right: 0,
-                whiteSpace: 'nowrap', pointerEvents: 'none', zIndex: 200,
-                background: 'var(--bg-card, white)', color: 'var(--text-primary, #111827)',
-                fontSize: 11, fontWeight: 500, padding: '5px 10px',
-                borderRadius: 8, boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                border: '1px solid var(--border-faint, #e5e7eb)',
-              }}>
-                {t('dayplan.icsTooltip')}
+            {exportMenuOpen && (
+              <div
+                style={{
+                  position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 200,
+                  width: 210, padding: 6, borderRadius: 12,
+                  background: 'var(--bg-card, white)', color: 'var(--text-primary, #111827)',
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.16)',
+                  border: '1px solid var(--border-faint, #e5e7eb)',
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={async () => { setExportMenuOpen(false); await handleExportPdf() }}
+                  style={{
+                    display: 'flex', alignItems: 'flex-start', gap: 10, width: '100%',
+                    padding: '9px 10px', borderRadius: 9, border: 'none', background: 'transparent',
+                    color: 'var(--text-primary)', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-hover)' }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+                >
+                  <FileDown size={15} strokeWidth={2} style={{ marginTop: 1, flexShrink: 0 }} />
+                  <span>
+                    <span style={{ display: 'block', fontSize: 12, fontWeight: 600 }}>{t('dayplan.exportPdf')}</span>
+                    <span style={{ display: 'block', fontSize: 11, color: 'var(--text-faint)', marginTop: 2 }}>{t('dayplan.pdfTooltip')}</span>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => { setExportMenuOpen(false); await handleExportIcs() }}
+                  style={{
+                    display: 'flex', alignItems: 'flex-start', gap: 10, width: '100%',
+                    padding: '9px 10px', borderRadius: 9, border: 'none', background: 'transparent',
+                    color: 'var(--text-primary)', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-hover)' }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+                >
+                  <FileDown size={15} strokeWidth={2} style={{ marginTop: 1, flexShrink: 0 }} />
+                  <span>
+                    <span style={{ display: 'block', fontSize: 12, fontWeight: 600 }}>{t('dayplan.exportIcs')}</span>
+                    <span style={{ display: 'block', fontSize: 11, color: 'var(--text-faint)', marginTop: 2 }}>{t('dayplan.icsTooltip')}</span>
+                  </span>
+                </button>
               </div>
             )}
           </div>
