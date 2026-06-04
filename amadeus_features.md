@@ -3,7 +3,7 @@
 ## 2026-06-02 — Consolidated trip export menu
 
 ### What
-Replaced separate PDF and ICS toolbar buttons in the day planner with a single **Export** button that opens a menu. The menu currently contains PDF and ICS Calendar export options and is ready for more export formats later.
+Replaced separate PDF and ICS toolbar buttons in the day planner with a single **Export** button that opens a menu. The menu currently contains PDF, ICS Calendar, and Copy markdown options and is ready for more export formats later.
 
 ### Files changed
 
@@ -16,9 +16,10 @@ Replaced separate PDF and ICS toolbar buttons in the day planner with a single *
 
 ### Behavior
 - Day planner toolbar now shows a single `Export` button.
-- Clicking it opens a menu with `PDF` and `ICS Calendar`.
+- Clicking it opens a menu with `PDF`, `ICS Calendar`, and `Copy markdown`.
 - Selecting PDF runs the existing trip PDF export.
 - Selecting ICS Calendar downloads the existing `.ics` calendar file.
+- Selecting Copy markdown copies a readable itinerary markdown including days, places, notes, reservations, and place details.
 
 ## 2026-06-01 — Map marker display mode
 

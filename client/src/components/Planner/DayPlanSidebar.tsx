@@ -885,6 +885,79 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
     } catch { toast.error(t('planner.icsExportFailed')) }
   }
 
+  const handleCopyMarkdown = async () => {
+    const lines: string[] = []
+    const tripTitle = trip?.title || 'Trip'
+    lines.push(`# ${tripTitle}`)
+    if (trip?.description?.trim()) {
+      lines.push('')
+      lines.push(trip.description.trim())
+    }
+
+    days.forEach((day, index) => {
+      const dayAssignments = assignments[String(day.id)] || []
+      const dayReservations = reservations.filter(r => r.day_id === day.id || r.end_day_id === day.id)
+      const notesForDay = dayNotes[String(day.id)] || []
+      const dayTitle = day.title?.trim() || t('dayplan.dayN', { n: index + 1 })
+      lines.push('')
+      lines.push(`## ${dayTitle}`)
+      if (day.date) lines.push(`- Date: ${formatDate(day.date, locale)}`)
+
+      if (dayAssignments.length > 0) {
+        lines.push('')
+        dayAssignments.forEach((assignment, assignmentIndex) => {
+          const place = assignment.place
+          if (!place) return
+          lines.push(`${assignmentIndex + 1}. ${place.name}`)
+          if (place.place_time) lines.push(`   - Time: ${formatTime(place.place_time, locale, timeFormat)}`)
+          if (place.address) lines.push(`   - Address: ${place.address}`)
+          if (place.category?.name) lines.push(`   - Category: ${place.category.name}`)
+          if (place.description) lines.push(`   - Description: ${place.description}`)
+          if (place.notes) lines.push(`   - Notes: ${place.notes}`)
+          if (place.website) lines.push(`   - Website: ${place.website}`)
+        })
+      }
+
+      if (notesForDay.length > 0) {
+        lines.push('')
+        lines.push(`### ${t('planner.addNote').replace(/^Add\s+/i, '') || 'Notes'}`)
+        notesForDay.forEach(note => {
+          const prefix = note.note_time ? `${formatTime(note.note_time, locale, timeFormat)} — ` : ''
+          lines.push(`- ${prefix}${note.content}`)
+        })
+      }
+
+      if (dayReservations.length > 0) {
+        lines.push('')
+        lines.push(`### ${t('reservations.title')}`)
+        dayReservations.forEach(reservation => {
+          const title = reservation.title || reservation.name
+          lines.push(`- ${title}`)
+          lines.push(`  - Type: ${t(`reservations.type.${reservation.type}`)}`)
+          lines.push(`  - Status: ${reservation.status === 'confirmed' ? t('reservations.confirmed') : t('reservations.pending')}`)
+          if (reservation.date) lines.push(`  - Date: ${formatDate(reservation.date, locale)}`)
+          if (reservation.time) lines.push(`  - Time: ${formatTime(reservation.time, locale, timeFormat)}`)
+          if (reservation.location) lines.push(`  - Location: ${reservation.location}`)
+          if (reservation.confirmation_number) lines.push(`  - Booking Code: ${reservation.confirmation_number}`)
+          if (reservation.notes) lines.push(`  - Notes: ${reservation.notes}`)
+          if (reservation.url) lines.push(`  - URL: ${reservation.url}`)
+        })
+      }
+    })
+
+    if (days.length === 0) {
+      lines.push('')
+      lines.push(`_${t('planner.noDaysPlanned')}_`)
+    }
+
+    try {
+      await navigator.clipboard.writeText(lines.join('\n').trim())
+      toast.success(t('planner.markdownCopied'))
+    } catch {
+      toast.error(t('planner.markdownCopyFailed'))
+    }
+  }
+
   // Bester verfügbarer Standort für Wetter: zugewiesene Orte zuerst, dann beliebiger Reiseort
   const anyGeoAssignment = Object.values(assignments).flatMap(da => da).find(a => a.place?.lat && a.place?.lng)
   const anyGeoPlace = anyGeoAssignment || (places || []).find(p => p.lat && p.lng)
@@ -950,6 +1023,23 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
                   <span>
                     <span style={{ display: 'block', fontSize: 12, fontWeight: 600 }}>{t('dayplan.exportIcs')}</span>
                     <span style={{ display: 'block', fontSize: 11, color: 'var(--text-faint)', marginTop: 2 }}>{t('dayplan.icsTooltip')}</span>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => { setExportMenuOpen(false); await handleCopyMarkdown() }}
+                  style={{
+                    display: 'flex', alignItems: 'flex-start', gap: 10, width: '100%',
+                    padding: '9px 10px', borderRadius: 9, border: 'none', background: 'transparent',
+                    color: 'var(--text-primary)', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-hover)' }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+                >
+                  <FileText size={15} strokeWidth={2} style={{ marginTop: 1, flexShrink: 0 }} />
+                  <span>
+                    <span style={{ display: 'block', fontSize: 12, fontWeight: 600 }}>{t('dayplan.exportMarkdown')}</span>
+                    <span style={{ display: 'block', fontSize: 11, color: 'var(--text-faint)', marginTop: 2 }}>{t('dayplan.markdownTooltip')}</span>
                   </span>
                 </button>
               </div>

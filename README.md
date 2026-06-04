@@ -94,7 +94,7 @@ A self-hosted, real-time collaborative travel planner — with maps, budgets, pa
 - **Packing lists** — categories, templates, user assignment, progress tracking
 - **Bag tracking** — optional weight tracking with iOS-style distribution
 - **Document manager** — attach docs, tickets, PDFs to trips / places / reservations (≤ 50 MB each)
-- **Export menu** — download the full trip plan as PDF or export itinerary events as an ICS calendar file
+- **Export menu** — download the full trip plan as PDF, export itinerary events as an ICS calendar file, or copy the itinerary as markdown
 
 </td>
 </tr>
