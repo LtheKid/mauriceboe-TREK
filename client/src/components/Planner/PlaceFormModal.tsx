@@ -379,6 +379,72 @@ export default function PlaceFormModal({
     }
   }
 
+  const googleMapsUrlInput = (
+    <div className="flex gap-2 mt-2">
+      <input
+        type="url"
+        value={googleMapsUrl}
+        onChange={e => setGoogleMapsUrl(e.target.value)}
+        onKeyDown={e => {
+          if (e.key === 'Enter') {
+            e.preventDefault()
+            handleResolveGoogleMapsUrl()
+          }
+        }}
+        placeholder={t('places.googleMapsUrlPlaceholder')}
+        className="form-input"
+      />
+      <button
+        type="button"
+        onClick={handleResolveGoogleMapsUrl}
+        disabled={isResolvingUrl || !googleMapsUrl.trim()}
+        className="bg-slate-900 text-white px-3 rounded-lg text-sm hover:bg-slate-700 disabled:opacity-60 shrink-0"
+      >
+        {isResolvingUrl ? '...' : t('places.extractCoords')}
+      </button>
+    </div>
+  )
+
+  const categorySection = (
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-1">{t('places.formCategory')}</label>
+      {!showNewCategory ? (
+        <div className="flex gap-2">
+          <CustomSelect
+            value={form.category_id}
+            onChange={value => handleChange('category_id', value)}
+            placeholder={t('places.noCategory')}
+            options={[
+              { value: '', label: t('places.noCategory') },
+              ...(categories || []).map(c => ({
+                value: c.id,
+                label: c.name,
+              })),
+            ]}
+            style={{ flex: 1 }}
+            size="sm"
+          />
+        </div>
+      ) : (
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={newCategoryName}
+            onChange={e => setNewCategoryName(e.target.value)}
+            placeholder={t('places.categoryNamePlaceholder')}
+            className="form-input" style={{ flex: 1 }}
+          />
+          <button type="button" onClick={handleCreateCategory} className="bg-slate-900 text-white px-3 rounded-lg hover:bg-slate-700 text-sm">
+            OK
+          </button>
+          <button type="button" onClick={() => setShowNewCategory(false)} className="text-gray-500 px-2 text-sm">
+            {t('common.cancel')}
+          </button>
+        </div>
+      )}
+    </div>
+  )
+
   return (
     <Modal
       isOpen={isOpen}
@@ -480,6 +546,9 @@ export default function PlaceFormModal({
           )}
         </div>
 
+        {/* Google Maps URL quick extract */}
+        {googleMapsUrlInput}
+
         {/* Name */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">{t('places.formName')} *</label>
@@ -499,6 +568,9 @@ export default function PlaceFormModal({
             )}
           </div>
         </div>
+
+        {/* Category */}
+        {categorySection}
 
         {/* Description */}
         <div>
@@ -562,68 +634,7 @@ export default function PlaceFormModal({
               className="form-input"
             />
           </div>
-          <div className="flex gap-2 mt-2">
-            <input
-              type="url"
-              value={googleMapsUrl}
-              onChange={e => setGoogleMapsUrl(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === 'Enter') {
-                  e.preventDefault()
-                  handleResolveGoogleMapsUrl()
-                }
-              }}
-              placeholder={t('places.googleMapsUrlPlaceholder')}
-              className="form-input"
-            />
-            <button
-              type="button"
-              onClick={handleResolveGoogleMapsUrl}
-              disabled={isResolvingUrl || !googleMapsUrl.trim()}
-              className="bg-slate-900 text-white px-3 rounded-lg text-sm hover:bg-slate-700 disabled:opacity-60 shrink-0"
-            >
-              {isResolvingUrl ? '...' : t('places.extractCoords')}
-            </button>
-          </div>
-        </div>
-
-        {/* Category */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">{t('places.formCategory')}</label>
-          {!showNewCategory ? (
-            <div className="flex gap-2">
-              <CustomSelect
-                value={form.category_id}
-                onChange={value => handleChange('category_id', value)}
-                placeholder={t('places.noCategory')}
-                options={[
-                  { value: '', label: t('places.noCategory') },
-                  ...(categories || []).map(c => ({
-                    value: c.id,
-                    label: c.name,
-                  })),
-                ]}
-                style={{ flex: 1 }}
-                size="sm"
-              />
-            </div>
-          ) : (
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={newCategoryName}
-                onChange={e => setNewCategoryName(e.target.value)}
-                placeholder={t('places.categoryNamePlaceholder')}
-                className="form-input" style={{ flex: 1 }}
-              />
-              <button type="button" onClick={handleCreateCategory} className="bg-slate-900 text-white px-3 rounded-lg hover:bg-slate-700 text-sm">
-                OK
-              </button>
-              <button type="button" onClick={() => setShowNewCategory(false)} className="text-gray-500 px-2 text-sm">
-                {t('common.cancel')}
-              </button>
-            </div>
-          )}
+          {googleMapsUrlInput}
         </div>
 
         {/* Time — only shown when editing, not when creating */}
