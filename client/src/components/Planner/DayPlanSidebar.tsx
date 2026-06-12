@@ -935,8 +935,51 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
           lines.push(`- ${title}`)
           lines.push(`  - Type: ${t(`reservations.type.${reservation.type}`)}`)
           lines.push(`  - Status: ${reservation.status === 'confirmed' ? t('reservations.confirmed') : t('reservations.pending')}`)
-          if (reservation.date) lines.push(`  - Date: ${formatDate(reservation.date, locale)}`)
-          if (reservation.time) lines.push(`  - Time: ${formatTime(reservation.time, locale, timeFormat)}`)
+
+          // Parse transport metadata (stored as JSON string or object)
+          let meta: Record<string, string> = {}
+          if (reservation.metadata) {
+            if (typeof reservation.metadata === 'string') {
+              try { meta = JSON.parse(reservation.metadata) } catch { meta = {} }
+            } else {
+              meta = reservation.metadata as Record<string, string>
+            }
+          }
+
+          // Departure / arrival times — transports use reservation_time/reservation_end_time (ISO)
+          const { date: depDate, time: depTime } = splitReservationDateTime(reservation.reservation_time)
+          const { date: arrDate, time: arrTime } = splitReservationDateTime(reservation.reservation_end_time)
+          if (depDate || depTime) {
+            const parts = [depDate ? formatDate(depDate, locale) : null, depTime ? formatTime(depTime, locale, timeFormat) : null].filter(Boolean)
+            if (parts.length) lines.push(`  - Departure: ${parts.join(' ')}${meta.departure_timezone ? ` (${meta.departure_timezone})` : ''}`)
+          }
+          if (arrDate || arrTime) {
+            const parts = [arrDate ? formatDate(arrDate, locale) : null, arrTime ? formatTime(arrTime, locale, timeFormat) : null].filter(Boolean)
+            if (parts.length) lines.push(`  - Arrival: ${parts.join(' ')}${meta.arrival_timezone ? ` (${meta.arrival_timezone})` : ''}`)
+          }
+
+          // Legacy date/time (non-transport reservations)
+          if (!reservation.reservation_time && reservation.date) lines.push(`  - Date: ${formatDate(reservation.date, locale)}`)
+          if (!reservation.reservation_time && reservation.time) lines.push(`  - Time: ${formatTime(reservation.time, locale, timeFormat)}`)
+
+          // Flight-specific metadata
+          if (meta.airline) lines.push(`  - Airline: ${meta.airline}`)
+          if (meta.flight_number) lines.push(`  - Flight No.: ${meta.flight_number}`)
+          if (meta.departure_airport) lines.push(`  - From: ${meta.departure_airport}`)
+          if (meta.arrival_airport) lines.push(`  - To: ${meta.arrival_airport}`)
+          // Train-specific metadata
+          if (meta.train_number) lines.push(`  - Train No.: ${meta.train_number}`)
+          if (meta.platform) lines.push(`  - Platform: ${meta.platform}`)
+          if (meta.seat) lines.push(`  - Seat: ${meta.seat}`)
+
+          // From/to endpoints (fallback when no airport codes in metadata)
+          if (reservation.endpoints?.length) {
+            const from = reservation.endpoints.find(e => e.role === 'from')
+            const to = reservation.endpoints.find(e => e.role === 'to')
+            if (from?.name && !meta.departure_airport) lines.push(`  - From: ${from.name}${from.code ? ` (${from.code})` : ''}`)
+            if (to?.name && !meta.arrival_airport) lines.push(`  - To: ${to.name}${to.code ? ` (${to.code})` : ''}`)
+          }
+
           if (reservation.location) lines.push(`  - Location: ${reservation.location}`)
           if (reservation.confirmation_number) lines.push(`  - Booking Code: ${reservation.confirmation_number}`)
           if (reservation.notes) lines.push(`  - Notes: ${reservation.notes}`)

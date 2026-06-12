@@ -1,5 +1,22 @@
 # Amadeus Features
 
+## 2026-06-12 — Transport booking details in Copy markdown
+
+### What
+Extended the **Export → Copy markdown** itinerary output to include transport booking details: departure/arrival times (with timezones), booking/confirmation codes, and transport-specific metadata (airline, flight number, train number, platform, seat) plus from/to endpoints.
+
+### Files changed
+
+| File | Change |
+|------|--------|
+| `client/src/components/Planner/DayPlanSidebar.tsx` | `handleCopyMarkdown` now parses reservation `metadata` (JSON string/object), emits departure/arrival times from `reservation_time`/`reservation_end_time` with timezones, flight/train metadata fields, and from/to endpoint names/codes. |
+
+### Behavior
+- Flight bookings include airline, flight number, departure/arrival airports and times with timezones.
+- Train bookings include train number, platform, and seat.
+- All transport bookings include booking code, departure/arrival times, and from/to endpoints when available.
+- Non-transport reservations keep the legacy date/time output.
+
 ## 2026-06-02 — Consolidated trip export menu
 
 ### What
