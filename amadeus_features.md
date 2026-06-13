@@ -1,5 +1,139 @@
 # Amadeus Features
 
+## 2026-06-13 — AI-powered trip import from JSON
+
+### What
+Added an **Import** button to the day planner toolbar with two options:
+1. **Copy AI prompt** — copies a prompt to the clipboard that users can paste into any LLM (ChatGPT, Claude, etc.) to generate a complete trip itinerary in JSON format
+2. **JSON itinerary** — imports a complete trip from JSON, creating days, places, assignments, notes, reservations, and categories in one operation
+
+This enables a zero-setup AI-assisted trip planning workflow:
+1. User copies the prompt
+2. Pastes into their preferred LLM
+3. LLM generates a detailed itinerary as JSON
+4. User imports the JSON back into TREK
+5. Full trip is created with all entities
+
+### Files changed
+
+| File | Change |
+|------|--------|
+| `server/src/services/tripImportService.ts` | New service: `validateImportJson()` validates schema and refs, `importTripFromJson()` creates categories, days, places, assignments, notes, and reservations in a transaction. Uses existing `buildDedupSet()` for place deduplication. |
+| `server/src/routes/trips.ts` | Added `POST /trips/:id/import/json` endpoint with permission checks. |
+| `client/src/api/client.ts` | Added `tripsApi.importJson()` method. |
+| `client/src/components/Planner/JsonImportModal.tsx` | New modal component with JSON textarea, validation, and error display. |
+| `client/src/components/Planner/DayPlanSidebar.tsx` | Added Import dropdown button (before Export) with Copy AI prompt and JSON itinerary options. |
+| `client/src/i18n/translations/en.ts` | Added translation keys for Import button, AI prompt, JSON import, and success/error messages. |
+
+### JSON schema
+The import format uses human-friendly references instead of database IDs:
+- **Places** use string refs (`p1`, `p2`, `p3...`) for assignments to reference
+- **Days** use numbers (`1`, `2`, `3...`) instead of IDs
+- **Categories** use names instead of IDs (created if missing)
+- **Assignments** reference places by `place_ref` and days by `day_number`
+- **Notes** reference days by `day_number`
+- **Reservations** reference days by `day_number` and include metadata for transport-specific fields
+
+### Key features
+- **Deduplication** — places are deduplicated by name and coordinates (11m tolerance) using existing `isPlaceDuplicate()` logic
+- **Smart day matching** — days are reused if date matches, otherwise created
+- **Smart category matching** — categories are reused if name exists for user, otherwise created
+- **Transaction safety** — entire import wrapped in SQLite transaction, rolls back on error
+- **Validation** — comprehensive validation with helpful error messages (missing refs, unknown day numbers, etc.)
+- **Context-aware prompt** — AI prompt includes trip dates and existing categories to help LLM generate compatible output
+
+### Example JSON structure
+```json
+{
+  "trip": {
+    "title": "Tokyo Adventure",
+    "description": "7 days exploring Tokyo",
+    "start_date": "2026-07-01",
+    "end_date": "2026-07-07",
+    "currency": "USD"
+  },
+  "categories": [
+    { "name": "Food", "color": "#ef4444" }
+  ],
+  "days": [
+    { "number": 1, "date": "2026-07-01", "title": "Arrival" }
+  ],
+  "places": [
+    {
+      "ref": "p1",
+      "name": "Tokyo Station",
+      "lat": 35.6812,
+      "lng": 139.7671,
+      "category": "Attraction",
+      "address": "1 Chome Marunouchi",
+      "description": "Historic railway station",
+      "website": "https://www.tokyoinfo.com/",
+      "notes": "Buy Suica card here",
+      "price": 0,
+      "place_time": "14:00",
+      "end_time": "15:00"
+    }
+  ],
+  "assignments": [
+    {
+      "place_ref": "p1",
+      "day_number": 1,
+      "time": "14:00",
+      "end_time": "15:00",
+      "order": 0,
+      "notes": "Arrive and explore"
+    }
+  ],
+  "notes": [
+    {
+      "day_number": 1,
+      "time": "09:00",
+      "text": "Pick up Suica card at station",
+      "icon": "📝"
+    }
+  ],
+  "reservations": [
+    {
+      "title": "Flight to Tokyo",
+      "type": "flight",
+      "day_number": 1,
+      "reservation_time": "2026-07-01T10:00",
+      "reservation_end_time": "2026-07-01T16:00",
+      "status": "confirmed",
+      "confirmation_number": "ABC123",
+      "location": "SFO Terminal 2",
+      "notes": "Window seat",
+      "metadata": {
+        "airline": "JAL",
+        "flight_number": "JL123",
+        "departure_airport": "SFO",
+        "arrival_airport": "NRT"
+      },
+      "endpoints": [
+        {
+          "role": "from",
+          "sequence": 0,
+          "name": "San Francisco",
+          "code": "SFO",
+          "lat": 37.6213,
+          "lng": -122.379,
+          "timezone": "America/Los_Angeles"
+        },
+        {
+          "role": "to",
+          "sequence": 1,
+          "name": "Narita",
+          "code": "NRT",
+          "lat": 35.7647,
+          "lng": 140.3864,
+          "timezone": "Asia/Tokyo"
+        }
+      ]
+    }
+  ]
+}
+```
+
 ## 2026-06-12 — Transport booking details in Copy markdown
 
 ### What

@@ -4,7 +4,7 @@ declare global { interface Window { __dragData: DragDataPayload | null } }
 
 import React, { useState, useEffect, useLayoutEffect, useRef, useMemo } from 'react'
 import ReactDOM from 'react-dom'
-import { ChevronDown, ChevronRight, ChevronUp, ChevronsDownUp, ChevronsUpDown, Navigation, RotateCcw, ExternalLink, Clock, Pencil, GripVertical, Ticket, Plus, FileText, Check, Trash2, Info, MapPin, Star, Heart, Camera, Lightbulb, Flag, Bookmark, Train, Bus, Plane, Car, Ship, Coffee, ShoppingBag, AlertTriangle, FileDown, Lock, Hotel, Utensils, Users, Undo2, X, Route as RouteIcon } from 'lucide-react'
+import { ChevronDown, ChevronRight, ChevronUp, ChevronsDownUp, ChevronsUpDown, Navigation, RotateCcw, ExternalLink, Clock, Pencil, GripVertical, Ticket, Plus, FileText, Check, Trash2, Info, MapPin, Star, Heart, Camera, Lightbulb, Flag, Bookmark, Train, Bus, Plane, Car, Ship, Coffee, ShoppingBag, AlertTriangle, FileDown, Lock, Hotel, Utensils, Users, Undo2, X, Route as RouteIcon, Upload, Copy, FileJson } from 'lucide-react'
 
 const RES_ICONS = { flight: Plane, hotel: Hotel, restaurant: Utensils, train: Train, car: Car, cruise: Ship, event: Ticket, tour: Users, other: FileText }
 import { assignmentsApi, reservationsApi } from '../../api/client'
@@ -31,6 +31,7 @@ import {
 import { formatDate, formatTime, dayTotalCost, currencyDecimals, splitReservationDateTime } from '../../utils/formatters'
 import { useDayNotes } from '../../hooks/useDayNotes'
 import Tooltip from '../shared/Tooltip'
+import JsonImportModal from './JsonImportModal'
 import type { Trip, Day, Place, Category, Assignment, Reservation, AssignmentsMap, RouteResult } from '../../types'
 
 const NOTE_ICONS = [
@@ -256,6 +257,8 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
   const [lockHoverId, setLockHoverId] = useState(null)
   const [undoHover, setUndoHover] = useState(false)
   const [exportMenuOpen, setExportMenuOpen] = useState(false)
+  const [importMenuOpen, setImportMenuOpen] = useState(false)
+  const [jsonImportOpen, setJsonImportOpen] = useState(false)
   const [hoveredAssignmentId, setHoveredAssignmentId] = useState<number | null>(null)
   const [dropTargetKey, _setDropTargetKey] = useState(null)
   const dropTargetRef = useRef(null)
@@ -1001,6 +1004,138 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
     }
   }
 
+  const handleCopyAiPrompt = async () => {
+    const tripTitle = trip?.title || 'your trip'
+    const tripDates = trip?.start_date && trip?.end_date
+      ? ` The trip dates are ${formatDate(trip.start_date, locale)} to ${formatDate(trip.end_date, locale)}.`
+      : ''
+
+    const existingCategories = categories?.length > 0
+      ? ` Use these existing categories: ${categories.map(c => c.name).join(', ')}.`
+      : ''
+
+    const prompt = `You are a travel planning assistant. Plan a detailed trip and output ONLY valid JSON in the exact format shown below. No explanation, no markdown, no code fences — just raw JSON.
+
+Plan a trip: ${tripTitle}.${tripDates}${existingCategories}
+
+Include:
+- 5-7 days of activities
+- A mix of attractions, food, transport, and rest
+- Realistic timing (don't schedule 6 places in 2 hours)
+- Actual latitude/longitude coordinates for each place
+- Reservations for flights and accommodation if applicable
+
+JSON format:
+{
+  "trip": {
+    "title": "Tokyo Adventure",
+    "description": "7 days exploring Tokyo",
+    "start_date": "2026-07-01",
+    "end_date": "2026-07-07",
+    "currency": "USD"
+  },
+  "categories": [
+    { "name": "Food", "color": "#ef4444" },
+    { "name": "Attraction", "color": "#3b82f6" }
+  ],
+  "days": [
+    { "number": 1, "date": "2026-07-01", "title": "Arrival" },
+    { "number": 2, "date": "2026-07-02", "title": "City Center" }
+  ],
+  "places": [
+    {
+      "ref": "p1",
+      "name": "Tokyo Station",
+      "lat": 35.6812,
+      "lng": 139.7671,
+      "category": "Attraction",
+      "address": "1 Chome Marunouchi, Chiyoda City, Tokyo",
+      "description": "Historic railway station",
+      "website": "https://www.tokyoinfo.com/",
+      "notes": "Buy Suica card here",
+      "price": 0,
+      "place_time": "14:00",
+      "end_time": "15:00"
+    }
+  ],
+  "assignments": [
+    {
+      "place_ref": "p1",
+      "day_number": 1,
+      "time": "14:00",
+      "end_time": "15:00",
+      "order": 0,
+      "notes": "Arrive and explore"
+    }
+  ],
+  "notes": [
+    {
+      "day_number": 1,
+      "time": "09:00",
+      "text": "Pick up Suica card at station",
+      "icon": "📝"
+    }
+  ],
+  "reservations": [
+    {
+      "title": "Flight to Tokyo",
+      "type": "flight",
+      "day_number": 1,
+      "reservation_time": "2026-07-01T10:00",
+      "reservation_end_time": "2026-07-01T16:00",
+      "status": "confirmed",
+      "confirmation_number": "ABC123",
+      "location": "SFO Terminal 2",
+      "notes": "Window seat",
+      "metadata": {
+        "airline": "JAL",
+        "flight_number": "JL123",
+        "departure_airport": "SFO",
+        "arrival_airport": "NRT"
+      },
+      "endpoints": [
+        {
+          "role": "from",
+          "sequence": 0,
+          "name": "San Francisco",
+          "code": "SFO",
+          "lat": 37.6213,
+          "lng": -122.379,
+          "timezone": "America/Los_Angeles"
+        },
+        {
+          "role": "to",
+          "sequence": 1,
+          "name": "Narita",
+          "code": "NRT",
+          "lat": 35.7647,
+          "lng": 140.3864,
+          "timezone": "Asia/Tokyo"
+        }
+      ]
+    }
+  ]
+}
+
+Rules:
+- Every place must have a unique "ref" (p1, p2, p3...)
+- Assignments reference places by "place_ref" and days by "day_number"
+- Use real coordinates, not made-up numbers
+- Times should be in HH:MM format (24h) for assignments
+- Reservation times should be ISO 8601 (2026-07-01T10:00)
+- Keep descriptions concise (1-2 sentences)
+- Include "notes" for practical tips (transport, tickets, opening hours)
+- For flights, include airline, flight_number, departure_airport, arrival_airport in metadata
+- For flights, include endpoints with from/to airports and coordinates`
+
+    try {
+      await navigator.clipboard.writeText(prompt)
+      toast.success(t('dayplan.promptCopied'))
+    } catch {
+      toast.error(t('dayplan.promptCopyFailed'))
+    }
+  }
+
   // Bester verfügbarer Standort für Wetter: zugewiesene Orte zuerst, dann beliebiger Reiseort
   const anyGeoAssignment = Object.values(assignments).flatMap(da => da).find(a => a.place?.lat && a.place?.lng)
   const anyGeoPlace = anyGeoAssignment || (places || []).find(p => p.lat && p.lng)
@@ -1010,6 +1145,67 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
       {/* Toolbar */}
       <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border-faint)', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
+          {/* Import button */}
+          <div style={{ position: 'relative', flexShrink: 0 }}>
+            <button
+              onClick={() => setImportMenuOpen(!importMenuOpen)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 5,
+                padding: '5px 10px', borderRadius: 8,
+                border: '1px solid var(--border-primary)', background: 'none',
+                color: 'var(--text-primary)', fontSize: 11, fontWeight: 500,
+                cursor: 'pointer', fontFamily: 'inherit',
+              }}
+            >
+              <Upload size={13} strokeWidth={2} />
+              {t('dayplan.import')}
+              <ChevronDown size={12} strokeWidth={2} />
+            </button>
+            {importMenuOpen && (
+              <div style={{
+                position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 200,
+                width: 210, padding: 6, borderRadius: 12,
+                background: 'var(--bg-card, white)', color: 'var(--text-primary, #111827)',
+                boxShadow: '0 8px 24px rgba(0,0,0,0.16)',
+                border: '1px solid var(--border-faint, #e5e7eb)',
+              }}>
+                <button
+                  type="button"
+                  onClick={() => { setImportMenuOpen(false); handleCopyAiPrompt() }}
+                  style={{
+                    display: 'flex', alignItems: 'flex-start', gap: 10, width: '100%',
+                    padding: '9px 10px', borderRadius: 9, border: 'none', background: 'transparent',
+                    color: 'var(--text-primary)', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-hover)' }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+                >
+                  <Copy size={15} strokeWidth={2} style={{ marginTop: 1, flexShrink: 0 }} />
+                  <span>
+                    <span style={{ display: 'block', fontSize: 12, fontWeight: 600 }}>{t('dayplan.copyAiPrompt')}</span>
+                    <span style={{ display: 'block', fontSize: 11, color: 'var(--text-faint)', marginTop: 2 }}>{t('dayplan.copyAiPromptTooltip')}</span>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setImportMenuOpen(false); setJsonImportOpen(true) }}
+                  style={{
+                    display: 'flex', alignItems: 'flex-start', gap: 10, width: '100%',
+                    padding: '9px 10px', borderRadius: 9, border: 'none', background: 'transparent',
+                    color: 'var(--text-primary)', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-hover)' }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+                >
+                  <FileJson size={15} strokeWidth={2} style={{ marginTop: 1, flexShrink: 0 }} />
+                  <span>
+                    <span style={{ display: 'block', fontSize: 12, fontWeight: 600 }}>{t('dayplan.importJson')}</span>
+                    <span style={{ display: 'block', fontSize: 11, color: 'var(--text-faint)', marginTop: 2 }}>{t('dayplan.importJsonTooltip')}</span>
+                  </span>
+                </button>
+              </div>
+            )}
+          </div>
           <div style={{ position: 'relative', flexShrink: 0 }}>
             <button
               onClick={() => setExportMenuOpen(v => !v)}
@@ -2365,6 +2561,14 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
         </div>
       )}
       <ContextMenu menu={ctxMenu.menu} onClose={ctxMenu.close} />
+      <JsonImportModal
+        isOpen={jsonImportOpen}
+        onClose={() => setJsonImportOpen(false)}
+        tripId={tripId}
+        onSuccess={() => {
+          // Trip data will reload automatically via Zustand store
+        }}
+      />
     </div>
   )
 })
