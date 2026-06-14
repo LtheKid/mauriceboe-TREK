@@ -9,7 +9,6 @@ import { broadcast } from '../websocket';
 import { AuthRequest, Trip } from '../types';
 import { writeAudit, getClientIp, logInfo } from '../services/auditLog';
 import { checkPermission } from '../services/permissions';
-import { importTripFromJson } from '../services/tripImportService';
 import {
   listTrips,
   createTrip,
@@ -353,30 +352,6 @@ router.get('/:id/export.ics', authenticate, (req: Request, res: Response) => {
   } catch (e: any) {
     if (e instanceof NotFoundError) return res.status(404).json({ error: e.message });
     throw e;
-  }
-});
-
-// ── JSON itinerary import ─────────────────────────────────────────────────
-
-router.post('/:id/import/json', authenticate, requireTripAccess, (req: Request, res: Response) => {
-  const authReq = req as AuthRequest;
-
-  // Check if user has permission to edit places
-  if (!checkPermission('place_edit', authReq.user.role, authReq.trip!.user_id, authReq.user.id, authReq.trip!.user_id !== authReq.user.id)) {
-    return res.status(403).json({ error: 'Insufficient permissions' });
-  }
-
-  try {
-    const result = importTripFromJson(authReq.trip!.id, authReq.user.id, req.body);
-
-    if (!result.success) {
-      return res.status(400).json({ errors: result.errors });
-    }
-
-    res.json({ success: true, stats: result.stats });
-  } catch (e: any) {
-    console.error('[Trip] JSON import error:', e);
-    res.status(500).json({ errors: [e.message || 'Import failed'] });
   }
 });
 

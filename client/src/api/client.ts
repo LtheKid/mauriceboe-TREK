@@ -235,7 +235,6 @@ export const tripsApi = {
   removeMember: (id: number | string, userId: number) => apiClient.delete(`/trips/${id}/members/${userId}`).then(r => r.data),
   copy: (id: number | string, data?: { title?: string }) => apiClient.post(`/trips/${id}/copy`, data || {}).then(r => r.data),
   bundle: (id: number | string) => apiClient.get(`/trips/${id}/bundle`).then(r => r.data),
-  importJson: (tripId: number | string, data: any) => apiClient.post(`/trips/${tripId}/import/json`, data).then(r => r.data),
 }
 
 export const daysApi = {
