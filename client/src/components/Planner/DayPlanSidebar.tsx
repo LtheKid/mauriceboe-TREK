@@ -885,6 +885,22 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
     } catch { toast.error(t('planner.icsExportFailed')) }
   }
 
+  const handleExportJson = async () => {
+    try {
+      const res = await fetch(`/api/trips/${tripId}/export.json`, {
+        credentials: 'include',
+      })
+      if (!res.ok) throw new Error()
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${trip?.title || 'trip'}.trek.json`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch { toast.error(t('planner.jsonExportFailed')) }
+  }
+
   const handleCopyMarkdown = async () => {
     const lines: string[] = []
     const tripTitle = trip?.title || 'Trip'
@@ -1066,6 +1082,23 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
                   <span>
                     <span style={{ display: 'block', fontSize: 12, fontWeight: 600 }}>{t('dayplan.exportIcs')}</span>
                     <span style={{ display: 'block', fontSize: 11, color: 'var(--text-faint)', marginTop: 2 }}>{t('dayplan.icsTooltip')}</span>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => { setExportMenuOpen(false); await handleExportJson() }}
+                  style={{
+                    display: 'flex', alignItems: 'flex-start', gap: 10, width: '100%',
+                    padding: '9px 10px', borderRadius: 9, border: 'none', background: 'transparent',
+                    color: 'var(--text-primary)', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-hover)' }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+                >
+                  <FileDown size={15} strokeWidth={2} style={{ marginTop: 1, flexShrink: 0 }} />
+                  <span>
+                    <span style={{ display: 'block', fontSize: 12, fontWeight: 600 }}>{t('dayplan.exportJson')}</span>
+                    <span style={{ display: 'block', fontSize: 11, color: 'var(--text-faint)', marginTop: 2 }}>{t('dayplan.jsonTooltip')}</span>
                   </span>
                 </button>
                 <button

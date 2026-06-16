@@ -234,6 +234,11 @@ export const tripsApi = {
   addMember: (id: number | string, identifier: string) => apiClient.post(`/trips/${id}/members`, { identifier }).then(r => r.data),
   removeMember: (id: number | string, userId: number) => apiClient.delete(`/trips/${id}/members/${userId}`).then(r => r.data),
   copy: (id: number | string, data?: { title?: string }) => apiClient.post(`/trips/${id}/copy`, data || {}).then(r => r.data),
+  importJson: (file: File) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    return apiClient.post('/trips/import/json', fd, { headers: { 'Content-Type': 'multipart/form-data' } }).then(r => r.data)
+  },
   bundle: (id: number | string) => apiClient.get(`/trips/${id}/bundle`).then(r => r.data),
 }
 

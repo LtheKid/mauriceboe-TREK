@@ -11,6 +11,7 @@ import DemoBanner from '../components/Layout/DemoBanner'
 import CurrencyWidget from '../components/Dashboard/CurrencyWidget'
 import TimezoneWidget from '../components/Dashboard/TimezoneWidget'
 import TripFormModal from '../components/Trips/TripFormModal'
+import TripImportModal from '../components/Trips/TripImportModal'
 import ConfirmDialog from '../components/shared/ConfirmDialog'
 import CopyTripDialog from '../components/shared/CopyTripDialog'
 import { useToast } from '../components/shared/Toast'
@@ -18,7 +19,7 @@ import { useCountUp } from '../hooks/useCountUp'
 import {
   Plus, Calendar, Trash2, Edit2, Map, ChevronDown, ChevronUp,
   Archive, ArchiveRestore, Clock, MapPin, Settings, X, ArrowRightLeft, Users,
-  LayoutGrid, List, Copy, Bell, CheckCircle2,
+  LayoutGrid, List, Copy, Bell, CheckCircle2, FileJson,
 } from 'lucide-react'
 import { useCanDo } from '../store/permissionsStore'
 
@@ -701,6 +702,7 @@ export default function DashboardPage(): React.ReactElement {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>(() => (localStorage.getItem('trek_dashboard_view') as 'grid' | 'list') || 'grid')
   const [deleteTrip, setDeleteTrip] = useState<DashboardTrip | null>(null)
   const [copyTrip, setCopyTrip] = useState<DashboardTrip | null>(null)
+  const [showImport, setShowImport] = useState<boolean>(false)
 
   const toggleViewMode = () => {
     setViewMode(prev => {
@@ -831,6 +833,11 @@ export default function DashboardPage(): React.ReactElement {
     setCopyTrip(null)
   }
 
+  const handleImportedTrip = (trip: DashboardTrip) => {
+    setTrips(prev => sortTrips([trip, ...prev]))
+    navigate(`/trips/${trip.id}`)
+  }
+
   const today = new Date().toISOString().split('T')[0]
   const spotlight = trips.find(t => t.start_date && t.end_date && t.start_date <= today && t.end_date >= today)
     || trips.find(t => t.start_date && t.start_date >= today)
@@ -891,14 +898,14 @@ export default function DashboardPage(): React.ReactElement {
           <div className="md:hidden grid grid-cols-3 gap-2 mb-6">
             {can('trip_create') && (
               <button
-                onClick={() => { setEditingTrip(null); setShowForm(true) }}
+                onClick={() => setShowImport(true)}
                 className="flex flex-col items-center gap-2 py-3.5 rounded-2xl border border-zinc-200 dark:border-zinc-700"
                 style={{ background: 'var(--bg-card)' }}
               >
-                <div className="w-9 h-9 rounded-[11px] flex items-center justify-center" style={{ background: '#FEF3C7', color: '#B45309' }}>
-                  <Plus size={16} />
+                <div className="w-9 h-9 rounded-[11px] flex items-center justify-center" style={{ background: '#E0E7FF', color: '#4338CA' }}>
+                  <FileJson size={16} />
                 </div>
-                <span className="text-[10px] font-semibold" style={{ color: 'var(--text-primary)' }}>{t('dashboard.mobile.newTrip')}</span>
+                <span className="text-[10px] font-semibold" style={{ color: 'var(--text-primary)' }}>{t('dashboard.importTrip')}</span>
               </button>
             )}
             <button
@@ -975,6 +982,21 @@ export default function DashboardPage(): React.ReactElement {
                 >
                   <Settings size={15} />
                 </button>
+                {can('trip_create') && (
+                  <button
+                    onClick={() => setShowImport(true)}
+                    style={{
+                      appearance: 'none', border: '1px solid var(--border-primary)', cursor: 'pointer', fontFamily: 'inherit',
+                      display: 'inline-flex', alignItems: 'center', gap: 6,
+                      padding: '9px 14px', borderRadius: 10, fontSize: 13, fontWeight: 500,
+                      background: 'var(--bg-card)', color: 'var(--text-primary)', flexShrink: 0,
+                      marginLeft: 2,
+                    }}
+                    className="hover:opacity-[0.88]"
+                  >
+                    <FileJson size={14} strokeWidth={2.5} /> {t('dashboard.importTrip')}
+                  </button>
+                )}
                 {can('trip_create') && (
                   <button
                     onClick={() => { setEditingTrip(null); setShowForm(true) }}
@@ -1201,6 +1223,12 @@ export default function DashboardPage(): React.ReactElement {
         onSave={editingTrip ? handleUpdate : handleCreate}
         trip={editingTrip}
         onCoverUpdate={handleCoverUpdate}
+      />
+
+      <TripImportModal
+        isOpen={showImport}
+        onClose={() => setShowImport(false)}
+        onImported={handleImportedTrip}
       />
 
       <ConfirmDialog

@@ -29,6 +29,7 @@ import {
   ValidationError,
   TRIP_SELECT,
 } from '../services/tripService';
+import { exportItineraryJson, importItineraryJson, parseItineraryJsonUpload } from '../services/itineraryJsonService';
 import { listDays, listAccommodations } from '../services/dayService';
 import { listPlaces } from '../services/placeService';
 import { listItems as listPackingItems } from '../services/packingService';
@@ -63,6 +64,16 @@ const uploadCover = multer({
     } else {
       cb(new Error('Only jpg, png, gif, webp images allowed'));
     }
+  },
+});
+
+const uploadItineraryJson = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (ext === '.json' || file.mimetype === 'application/json') cb(null, true);
+    else cb(new Error('Only JSON itinerary files are allowed'));
   },
 });
 
@@ -111,6 +122,24 @@ router.post('/', authenticate, (req: Request, res: Response) => {
   }
 
   res.status(201).json({ trip });
+});
+
+// ── Import itinerary JSON ─────────────────────────────────────────────────
+
+router.post('/import/json', authenticate, uploadItineraryJson.single('file'), (req: Request, res: Response) => {
+  const authReq = req as AuthRequest;
+  if (!checkPermission('trip_create', authReq.user.role, null, authReq.user.id, false))
+    return res.status(403).json({ error: 'No permission to create trips' });
+
+  try {
+    const payload = parseItineraryJsonUpload(req.file, req.body);
+    const result = importItineraryJson(authReq.user.id, payload) as any;
+    writeAudit({ userId: authReq.user.id, action: 'trip.import_json', ip: getClientIp(req), details: { tripId: result.trip?.id, title: result.trip?.title, counts: result.counts } });
+    res.status(201).json({ trip: result.trip, counts: result.counts });
+  } catch (e: any) {
+    if (e instanceof ValidationError) return res.status(400).json({ error: e.message });
+    throw e;
+  }
 });
 
 // ── Get trip ──────────────────────────────────────────────────────────────
@@ -308,7 +337,7 @@ router.get('/:id/bundle', authenticate, (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const tripId = req.params.id;
 
-  const trip = getTrip(tripId, authReq.user.id);
+  const trip = getTrip(tripId, authReq.user.id) as any;
   if (!trip) return res.status(404).json({ error: 'Trip not found' });
 
   const { days } = listDays(tripId);
@@ -334,6 +363,24 @@ router.get('/:id/bundle', authenticate, (req: Request, res: Response) => {
     accommodations,
     members: allMembers,
   });
+});
+
+// ── JSON itinerary export ─────────────────────────────────────────────────
+
+router.get('/:id/export.json', authenticate, (req: Request, res: Response) => {
+  const authReq = req as AuthRequest;
+  if (!canAccessTrip(req.params.id, authReq.user.id))
+    return res.status(404).json({ error: 'Trip not found' });
+
+  try {
+    const { payload, filename } = exportItineraryJson(req.params.id, authReq.user.id);
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(JSON.stringify(payload, null, 2));
+  } catch (e: any) {
+    if (e instanceof NotFoundError) return res.status(404).json({ error: e.message });
+    throw e;
+  }
 });
 
 // ── ICS calendar export ───────────────────────────────────────────────────
