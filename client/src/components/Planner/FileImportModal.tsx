@@ -41,7 +41,7 @@ export default function FileImportModal({ isOpen, onClose, tripId, pushUndo, ini
 
   const validateFile = (f: File): string | null => {
     const ext = f.name.toLowerCase().split('.').pop()
-    if (ext !== 'gpx' && ext !== 'kml' && ext !== 'kmz') {
+    if (ext !== 'gpx' && ext !== 'kml' && ext !== 'kmz' && ext !== 'json') {
       return t('places.importFileUnsupported')
     }
     if (f.size > MAX_FILE_BYTES) {
@@ -144,6 +144,26 @@ export default function FileImportModal({ isOpen, onClose, tripId, pushUndo, ini
           })
         }
         handleClose()
+      } else if (ext === 'json') {
+        const result = await placesApi.importJson(tripId, file)
+        await loadTrip(tripId)
+        setSummary(result.summary || null)
+        if (result.count === 0 && (result.summary?.skippedCount ?? 0) > 0) {
+          toast.warning(t('places.importAllSkipped'))
+        } else {
+          toast.success(t('places.jsonImported', { count: result.count }))
+        }
+        if (result.summary?.errors?.length > 0) {
+          setError(result.summary.errors.join('\n'))
+        }
+        if (result.places?.length > 0) {
+          const importedIds: number[] = result.places.map((p: { id: number }) => p.id)
+          pushUndo?.(t('undo.importJsonPlaces'), async () => {
+            try { await placesApi.bulkDelete(tripId, importedIds) } catch {}
+            await loadTrip(tripId)
+          })
+        }
+        if (!result.summary?.errors?.length) handleClose()
       } else {
         const result = await placesApi.importMapFile(tripId, file, kmlOpts)
         await loadTrip(tripId)
@@ -178,6 +198,7 @@ export default function FileImportModal({ isOpen, onClose, tripId, pushUndo, ini
   const fileExt = file?.name.toLowerCase().split('.').pop() ?? ''
   const isGpx = fileExt === 'gpx'
   const isKml = fileExt === 'kml' || fileExt === 'kmz'
+  const isJson = fileExt === 'json'
   const gpxNoneSelected = isGpx && !gpxOpts.waypoints && !gpxOpts.routes && !gpxOpts.tracks
   const kmlNoneSelected = isKml && !kmlOpts.points && !kmlOpts.paths
   const canImport = !!file && !loading && !gpxNoneSelected && !kmlNoneSelected
@@ -203,7 +224,7 @@ export default function FileImportModal({ isOpen, onClose, tripId, pushUndo, ini
         <input
           ref={fileInputRef}
           type="file"
-          accept=".gpx,.kml,.kmz"
+          accept=".gpx,.kml,.kmz,.json,application/json"
           style={{ display: 'none' }}
           onChange={handleInputChange}
         />

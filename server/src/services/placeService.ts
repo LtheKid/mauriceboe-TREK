@@ -353,6 +353,181 @@ export interface KmlImportOptions {
   importPaths?: boolean;
 }
 
+interface JsonPlaceInput {
+  name?: string;
+  title?: string;
+  description?: string;
+  lat?: number | string;
+  latitude?: number | string;
+  lng?: number | string;
+  longitude?: number | string;
+  address?: string;
+  category?: string | { name?: string; color?: string; icon?: string };
+  price?: number | string;
+  currency?: string;
+  place_time?: string;
+  placeTime?: string;
+  time?: string;
+  end_time?: string;
+  endTime?: string;
+  duration_minutes?: number | string;
+  durationMinutes?: number | string;
+  notes?: string;
+  image_url?: string;
+  imageUrl?: string;
+  google_place_id?: string;
+  googlePlaceId?: string;
+  osm_id?: string;
+  osmId?: string;
+  route_geometry?: string;
+  routeGeometry?: string;
+  website?: string;
+  phone?: string;
+  transport_mode?: string;
+  transportMode?: string;
+  tags?: Array<string | { name?: string; color?: string }>;
+}
+
+const toStringOrNull = (value: unknown): string | null => value === undefined || value === null || value === '' ? null : String(value);
+const toNumberOrNull = (value: unknown): number | null => value === undefined || value === null || value === '' || Number.isNaN(Number(value)) ? null : Number(value);
+const toIntOrNull = (value: unknown): number | null => value === undefined || value === null || value === '' || Number.isNaN(parseInt(String(value), 10)) ? null : parseInt(String(value), 10);
+
+function getOrCreateJsonCategory(userId: number, category: JsonPlaceInput['category']): number | null {
+  if (!category) return null;
+  const name = typeof category === 'string' ? category : toStringOrNull(category.name);
+  if (!name) return null;
+
+  const existing = db.prepare(`
+    SELECT id FROM categories
+    WHERE lower(name) = lower(?) AND (user_id = ? OR user_id IS NULL)
+    ORDER BY user_id IS NULL DESC, id ASC
+    LIMIT 1
+  `).get(name, userId) as { id: number } | undefined;
+  if (existing) return existing.id;
+
+  const result = db.prepare('INSERT INTO categories (name, color, icon, user_id) VALUES (?, ?, ?, ?)')
+    .run(
+      name,
+      typeof category === 'object' ? (toStringOrNull(category.color) || '#6366f1') : '#6366f1',
+      typeof category === 'object' ? (toStringOrNull(category.icon) || '📍') : '📍',
+      userId,
+    );
+  return Number(result.lastInsertRowid);
+}
+
+function getOrCreateJsonTag(userId: number, tag: string | { name?: string; color?: string }): number | null {
+  const name = typeof tag === 'string' ? tag : toStringOrNull(tag.name);
+  if (!name) return null;
+
+  const existing = db.prepare('SELECT id FROM tags WHERE user_id = ? AND lower(name) = lower(?) LIMIT 1')
+    .get(userId, name) as { id: number } | undefined;
+  if (existing) return existing.id;
+
+  const result = db.prepare('INSERT INTO tags (user_id, name, color) VALUES (?, ?, ?)')
+    .run(userId, name, typeof tag === 'object' ? (toStringOrNull(tag.color) || '#10b981') : '#10b981');
+  return Number(result.lastInsertRowid);
+}
+
+export function importPlacesJson(tripId: string, userId: number, buffer: Buffer): PlaceImportResult {
+  let payload: any;
+  try {
+    payload = JSON.parse(buffer.toString('utf8'));
+  } catch {
+    throw new Error('Invalid JSON file');
+  }
+
+  const rawPlaces = Array.isArray(payload) ? payload : payload?.places;
+  if (!Array.isArray(rawPlaces)) {
+    throw new Error('JSON must contain a places array');
+  }
+
+  const dedup = buildDedupSet(tripId);
+  const places: any[] = [];
+  const warnings: string[] = [];
+  const errors: string[] = [];
+  let skippedCount = 0;
+
+  const insertPlace = db.prepare(`
+    INSERT INTO places (trip_id, name, description, lat, lng, address, category_id, price, currency,
+      place_time, end_time, duration_minutes, notes, image_url, google_place_id, osm_id, route_geometry,
+      website, phone, transport_mode)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  const insertPlaceTag = db.prepare('INSERT OR IGNORE INTO place_tags (place_id, tag_id) VALUES (?, ?)');
+
+  const tx = db.transaction(() => {
+    rawPlaces.forEach((raw: JsonPlaceInput, index: number) => {
+      if (!raw || typeof raw !== 'object') {
+        errors.push(`Place ${index + 1}: expected an object`);
+        return;
+      }
+
+      const name = toStringOrNull(raw.name || raw.title);
+      if (!name) {
+        errors.push(`Place ${index + 1}: name is required`);
+        return;
+      }
+
+      const lat = toNumberOrNull(raw.lat ?? raw.latitude);
+      const lng = toNumberOrNull(raw.lng ?? raw.longitude);
+      if (isPlaceDuplicate({ name, lat, lng }, dedup)) {
+        skippedCount += 1;
+        return;
+      }
+
+      const categoryId = getOrCreateJsonCategory(userId, raw.category);
+      const result = insertPlace.run(
+        tripId,
+        name,
+        toStringOrNull(raw.description),
+        lat,
+        lng,
+        toStringOrNull(raw.address),
+        categoryId,
+        toNumberOrNull(raw.price),
+        toStringOrNull(raw.currency),
+        toStringOrNull(raw.place_time ?? raw.placeTime ?? raw.time),
+        toStringOrNull(raw.end_time ?? raw.endTime),
+        toIntOrNull(raw.duration_minutes ?? raw.durationMinutes) ?? 60,
+        toStringOrNull(raw.notes),
+        toStringOrNull(raw.image_url ?? raw.imageUrl),
+        toStringOrNull(raw.google_place_id ?? raw.googlePlaceId),
+        toStringOrNull(raw.osm_id ?? raw.osmId),
+        toStringOrNull(raw.route_geometry ?? raw.routeGeometry),
+        toStringOrNull(raw.website),
+        toStringOrNull(raw.phone),
+        toStringOrNull(raw.transport_mode ?? raw.transportMode) || 'walking',
+      );
+      const placeId = Number(result.lastInsertRowid);
+      for (const tag of Array.isArray(raw.tags) ? raw.tags : []) {
+        const tagId = getOrCreateJsonTag(userId, tag);
+        if (tagId) insertPlaceTag.run(placeId, tagId);
+      }
+      trackInsertedInDedupSet({ name, lat, lng }, dedup);
+      const inserted = getPlaceWithTags(placeId);
+      if (inserted) places.push(inserted);
+    });
+  });
+
+  tx();
+
+  if (places.length === 0 && skippedCount === 0 && errors.length === 0) {
+    warnings.push('No places found in JSON file');
+  }
+
+  return {
+    places,
+    count: places.length,
+    summary: {
+      totalPlacemarks: rawPlaces.length,
+      createdCount: places.length,
+      skippedCount,
+      warnings,
+      errors,
+    },
+  };
+}
+
 export function importGpx(tripId: string, fileBuffer: Buffer, opts: GpxImportOptions = {}) {
   const { importWaypoints = true, importRoutes = true, importTracks = true } = opts;
 

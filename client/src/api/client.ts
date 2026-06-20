@@ -271,6 +271,11 @@ export const placesApi = {
     if (opts?.paths !== undefined) fd.append('importPaths', String(opts.paths))
     return apiClient.post(`/trips/${tripId}/places/import/map`, fd, { headers: { 'Content-Type': 'multipart/form-data' } }).then(r => r.data)
   },
+  importJson: (tripId: number | string, file: File) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    return apiClient.post(`/trips/${tripId}/places/import/json`, fd, { headers: { 'Content-Type': 'multipart/form-data' } }).then(r => r.data)
+  },
   importGoogleRoute: (tripId: number | string, url: string) =>
       apiClient.post(`/trips/${tripId}/places/import/google-route`, { url }).then(r => r.data),
   importGoogleList: (tripId: number | string, url: string) =>

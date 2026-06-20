@@ -15,6 +15,7 @@ import {
   deletePlacesMany,
   importGpx,
   importMapFile,
+  importPlacesJson,
   importGoogleRoute,
   importGoogleList,
   importNaverList,
@@ -120,6 +121,33 @@ router.post('/import/map', authenticate, requireTripAccess, uploadMulter.single(
     }
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Failed to import map file';
+    res.status(400).json({ error: message });
+  }
+});
+
+router.post('/import/json', authenticate, requireTripAccess, uploadMulter.single('file'), (req: Request, res: Response) => {
+  const authReq = req as AuthRequest;
+  if (!checkPermission('place_edit', authReq.user.role, authReq.trip!.user_id, authReq.user.id, authReq.trip!.user_id !== authReq.user.id)) {
+    return res.status(403).json({ error: 'No permission' });
+  }
+
+  const { tripId } = req.params;
+  const file = req.file as Express.Multer.File | undefined;
+  if (!file) return res.status(400).json({ error: 'No file uploaded' });
+
+  try {
+    const result = importPlacesJson(tripId, authReq.user.id, file.buffer);
+    if (result.summary?.totalPlacemarks === 0) {
+      return res.status(400).json({ error: 'No places found in JSON file', summary: result.summary });
+    }
+
+    res.status(201).json(result);
+    for (const place of result.places) {
+      broadcast(tripId, 'place:created', { place }, req.headers['x-socket-id'] as string);
+      try { onPlaceCreated(Number(tripId), place.id); } catch {}
+    }
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to import JSON places';
     res.status(400).json({ error: message });
   }
 });
